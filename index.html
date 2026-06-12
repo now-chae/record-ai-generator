@@ -474,8 +474,7 @@
     const res = await fetch(`${BASE_URL}/sessions`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({ agentId: AGENT_ID })
     });
@@ -493,8 +492,7 @@ async function runAgent(sessionId, userInput, apiKey) {
   const res = await fetch(`${BASE_URL}/agents/run`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey
+      "Content-Type": "application/json"
     },
     body: JSON.stringify({
       sessionId,
