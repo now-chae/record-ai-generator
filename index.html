@@ -22,25 +22,12 @@
       --muted: #6B7A8D;
       --line: #DDE4ED;
       --bg: #F2F6FB;
-      --card: #FFFFFF;
     }
 
     body { background: var(--bg); color: var(--ink); }
 
-    /* API Key input */
-    #api-key-input {
-      font-family: 'Noto Sans KR', monospace;
-      letter-spacing: 0.03em;
-    }
-    #api-key-input:focus { outline: none; border-color: var(--sky); box-shadow: 0 0 0 3px rgba(74,144,217,0.15); }
+    #agent-id-input:focus { outline: none; border-color: var(--sky); box-shadow: 0 0 0 3px rgba(74,144,217,0.15); }
 
-    .key-status-saved {
-      background: var(--green-light);
-      color: var(--green);
-      border-color: var(--green) !important;
-    }
-
-    /* Upload zone */
     #drop-zone {
       border: 2.5px dashed var(--sky-mid);
       background: var(--sky-light);
@@ -54,7 +41,7 @@
 
     .student-card {
       border: 1.5px solid var(--line);
-      background: var(--card);
+      background: #fff;
       border-radius: 14px;
       overflow: hidden;
       transition: box-shadow 0.2s;
@@ -66,12 +53,9 @@
 
     @keyframes spin { to { transform: rotate(360deg); } }
     .spinner {
-      display: inline-block;
-      width: 16px; height: 16px;
-      border: 2px solid var(--sky-mid);
-      border-top-color: var(--sky);
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
+      display: inline-block; width: 16px; height: 16px;
+      border: 2px solid var(--sky-mid); border-top-color: var(--sky);
+      border-radius: 50%; animation: spin 0.7s linear infinite;
     }
 
     .step-badge {
@@ -89,35 +73,24 @@
     .fade-up { animation: fadeUp 0.35s ease both; }
 
     .record-text {
-      background: #F8FAFD;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 12px 14px;
-      line-height: 1.75;
-      font-size: 14.5px;
-      color: var(--ink);
-      white-space: pre-wrap;
-      word-break: keep-all;
+      background: #F8FAFD; border: 1px solid var(--line); border-radius: 8px;
+      padding: 12px 14px; line-height: 1.75; font-size: 14.5px;
+      white-space: pre-wrap; word-break: keep-all;
     }
     .subject-badge {
-      display: inline-block;
-      background: var(--sky-light); color: var(--sky);
-      border: 1px solid var(--sky-mid);
-      border-radius: 20px; padding: 3px 14px;
-      font-size: 13px; font-weight: 600;
+      display: inline-block; background: var(--sky-light); color: var(--sky);
+      border: 1px solid var(--sky-mid); border-radius: 20px;
+      padding: 3px 14px; font-size: 13px; font-weight: 600;
     }
+    .section-disabled { opacity: 0.4; pointer-events: none; }
 
     ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--sky-mid); border-radius: 3px; }
-
-    /* Disabled section overlay */
-    .section-disabled { opacity: 0.45; pointer-events: none; }
   </style>
 </head>
 <body class="min-h-screen">
 
-  <!-- Header -->
+  <!-- 헤더 -->
   <header class="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm">
     <div class="max-w-3xl mx-auto px-5 py-4 flex items-center justify-between">
       <div class="flex items-center gap-3">
@@ -127,71 +100,57 @@
           <div class="text-xs" style="color:var(--muted);">PDF 업로드 한 번으로 학생별 세특 완성</div>
         </div>
       </div>
-      <!-- 헤더 키 상태 표시 -->
-      <div id="header-key-status" class="hidden text-xs px-3 py-1.5 rounded-full font-medium" style="background:var(--green-light);color:var(--green);">
-        🔑 API 키 저장됨
+      <div id="header-id-status" class="hidden text-xs px-3 py-1.5 rounded-full font-medium" style="background:var(--green-light);color:var(--green);">
+        ✅ Agent ID 저장됨
       </div>
     </div>
   </header>
 
   <main class="max-w-3xl mx-auto px-5 py-8 space-y-5">
 
-    <!-- ── Step 0: API 키 입력 ── -->
-    <section id="section-apikey" class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+    <!-- Step 0: Agent ID 입력 -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
       <div class="flex items-center gap-2 mb-1">
-        <span class="step-badge">🔑</span>
-        <h2 class="font-semibold text-base" style="color:var(--ink);">API 키 입력</h2>
+        <span class="step-badge">🤖</span>
+        <h2 class="font-semibold text-base" style="color:var(--ink);">Agent ID 입력</h2>
       </div>
       <p class="text-xs mb-4 ml-8" style="color:var(--muted);">
-        관리자에게 받은 API 키를 입력하세요. 브라우저에만 저장되며 외부로 전송되지 않습니다.
+        관리자에게 받은 Agent ID를 입력하세요. 이 기기 브라우저에만 저장되며 외부로 전송되지 않습니다.
       </p>
 
       <div class="flex gap-2">
         <div class="relative flex-1">
-          <input
-            id="api-key-input"
-            type="password"
-            placeholder="API 키를 입력하세요"
+          <input id="agent-id-input" type="password"
+            placeholder="Agent ID를 입력하세요"
             class="w-full px-4 py-2.5 rounded-xl border text-sm transition-all"
             style="border-color:var(--line);background:#FAFCFF;"
-            oninput="onApiKeyInput()"
-            onkeydown="if(event.key==='Enter') saveApiKey()"
-          />
-          <button
-            id="toggle-key-visibility"
-            onclick="toggleKeyVisibility()"
+            oninput="onAgentIdInput()"
+            onkeydown="if(event.key==='Enter') saveAgentId()" />
+          <button onclick="toggleIdVisibility()"
             class="absolute right-3 top-1/2 -translate-y-1/2 text-base"
-            title="키 표시/숨기기"
-            style="color:var(--muted);">👁</button>
+            style="color:var(--muted);" id="toggle-id-vis">👁</button>
         </div>
-        <button
-          id="save-key-btn"
-          onclick="saveApiKey()"
+        <button id="save-id-btn" onclick="saveAgentId()" disabled
           class="px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-          style="background:var(--sky);"
-          disabled>
-          저장
-        </button>
+          style="background:var(--sky);">저장</button>
       </div>
 
-      <!-- 저장 완료 상태 -->
-      <div id="key-saved-msg" class="hidden mt-3 flex items-center gap-2 text-sm px-3 py-2 rounded-lg" style="background:var(--green-light);color:var(--green);">
+      <div id="id-saved-msg" class="hidden mt-3 flex items-center gap-2 text-sm px-3 py-2 rounded-lg" style="background:var(--green-light);color:var(--green);">
         <span>✅</span>
-        <span class="font-medium">API 키가 저장되었습니다.</span>
-        <button onclick="clearApiKey()" class="ml-auto text-xs underline opacity-70 hover:opacity-100" style="color:var(--green);">삭제</button>
+        <span class="font-medium">Agent ID가 저장되었습니다.</span>
+        <button onclick="clearAgentId()" class="ml-auto text-xs underline opacity-70 hover:opacity-100">삭제</button>
       </div>
 
-      <!-- 안내 -->
       <div class="mt-3 text-xs rounded-lg px-3 py-2.5 flex gap-2" style="background:#F8FAFD;color:var(--muted);border:1px solid var(--line);">
         <span>ℹ️</span>
-        <span>키는 이 기기의 브라우저 <strong>localStorage</strong>에만 저장됩니다. 페이지를 닫아도 유지되며, "삭제" 버튼으로 언제든 지울 수 있습니다.</span>
+        <span>Agent ID는 이 기기의 브라우저 <strong>localStorage</strong>에만 저장됩니다. "삭제" 버튼으로 언제든 지울 수 있습니다.</span>
       </div>
     </section>
 
-    <!-- ── Step 1: PDF 업로드 ── -->
+    <!-- Step 1: PDF 업로드 -->
     <section id="section-upload" class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 section-disabled">
       <div class="flex items-center gap-2 mb-4">
-        <span class="step-badge" id="badge-1">1</span>
+        <span class="step-badge">1</span>
         <h2 class="font-semibold text-base" style="color:var(--ink);">수업 기록 PDF 업로드</h2>
       </div>
 
@@ -202,7 +161,7 @@
            ondragleave="handleDragLeave(event)"
            ondrop="handleDrop(event)">
         <div id="upload-icon" class="text-4xl">📄</div>
-        <div class="font-medium text-sm" id="upload-label" style="color:var(--sky);">여기를 클릭하거나 PDF를 끌어다 놓으세요</div>
+        <div id="upload-label" class="font-medium text-sm" style="color:var(--sky);">여기를 클릭하거나 PDF를 끌어다 놓으세요</div>
         <div class="text-xs" style="color:var(--muted);">수업 관찰 기록, 활동지, 평가지 등 PDF 파일</div>
       </div>
       <input type="file" id="file-input" accept=".pdf" class="hidden" onchange="handleFileSelect(event)" />
@@ -213,32 +172,28 @@
         <span id="file-size" class="ml-auto text-xs opacity-70 whitespace-nowrap"></span>
       </div>
 
-      <button id="generate-btn"
-              onclick="startGeneration()"
-              disabled
-              class="mt-4 w-full py-3 rounded-xl font-semibold text-white text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-              style="background:var(--sky);">
-        세특 자동 생성 시작
-      </button>
+      <button id="generate-btn" onclick="startGeneration()" disabled
+        class="mt-4 w-full py-3 rounded-xl font-semibold text-white text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+        style="background:var(--sky);">세특 자동 생성 시작</button>
     </section>
 
-    <!-- ── Step 2: 처리 중 ── -->
+    <!-- Step 2: 처리 중 -->
     <section id="progress-section" class="hidden bg-white rounded-2xl shadow-sm border border-slate-100 p-6 fade-up">
       <div class="flex items-center gap-2 mb-4">
-        <span class="step-badge" id="badge-2">2</span>
+        <span class="step-badge">2</span>
         <h2 class="font-semibold text-base" style="color:var(--ink);">처리 중</h2>
       </div>
       <div class="space-y-3">
         <div id="step-extract" class="flex items-center gap-3 text-sm" style="color:var(--muted);">
-          <div class="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full border-2 border-current" id="icon-extract">○</div>
+          <div id="icon-extract" class="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full border-2 border-current">○</div>
           <span>PDF 텍스트 추출 중…</span>
         </div>
         <div id="step-session" class="flex items-center gap-3 text-sm" style="color:var(--muted);">
-          <div class="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full border-2 border-current" id="icon-session">○</div>
+          <div id="icon-session" class="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full border-2 border-current">○</div>
           <span>AI 세션 연결 중…</span>
         </div>
         <div id="step-agent" class="flex items-center gap-3 text-sm" style="color:var(--muted);">
-          <div class="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full border-2 border-current" id="icon-agent">○</div>
+          <div id="icon-agent" class="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full border-2 border-current">○</div>
           <span>AI가 세특 작성 중… (잠시 기다려 주세요)</span>
         </div>
       </div>
@@ -247,13 +202,13 @@
       </div>
     </section>
 
-    <!-- Error -->
-    <div id="error-box" class="hidden rounded-xl px-5 py-4 text-sm font-medium fade-up" style="background:var(--red-light);color:var(--red);">
+    <!-- 에러 -->
+    <div id="error-box" class="hidden rounded-xl px-5 py-4 text-sm fade-up" style="background:var(--red-light);color:var(--red);">
       <div class="font-bold mb-1">⚠ 오류 발생</div>
       <pre id="error-msg" style="white-space:pre-wrap;word-break:break-all;font-size:12px;font-family:inherit;margin:0;"></pre>
     </div>
 
-    <!-- ── Step 3: 결과 ── -->
+    <!-- Step 3: 결과 -->
     <section id="results-section" class="hidden fade-up">
       <div class="flex items-center justify-between mb-4">
         <div class="flex items-center gap-2">
@@ -261,140 +216,110 @@
           <h2 class="font-semibold text-base" style="color:var(--ink);">생성 완료</h2>
           <span id="subject-badge-display" class="subject-badge ml-2"></span>
         </div>
-        <button id="copy-all-btn"
-                onclick="copyAll()"
-                class="copy-btn flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition-all"
-                style="border-color:var(--sky);color:var(--sky);background:#fff;">
-          <span>📋</span> 전체 복사
+        <button id="copy-all-btn" onclick="copyAll()"
+          class="copy-btn flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border"
+          style="border-color:var(--sky);color:var(--sky);background:#fff;">
+          📋 전체 복사
         </button>
       </div>
-
       <div class="text-xs mb-4 px-1" style="color:var(--muted);">
         총 <strong id="student-count">0</strong>명의 세특이 생성되었습니다.
       </div>
-
       <div id="students-container" class="space-y-4"></div>
-
       <button onclick="resetApp()"
-              class="mt-6 w-full py-2.5 rounded-xl text-sm font-semibold border-2 transition-all"
-              style="border-color:var(--line);color:var(--muted);">
+        class="mt-6 w-full py-2.5 rounded-xl text-sm font-semibold border-2"
+        style="border-color:var(--line);color:var(--muted);">
         🔄 새 파일로 다시 생성
       </button>
     </section>
 
   </main>
 
-  <footer class="text-center text-xs py-6" style="color:var(--muted);">
-    선생님의 소중한 시간을 아껴드립니다 🍀
-  </footer>
+  <footer class="text-center text-xs py-6" style="color:var(--muted);">선생님의 소중한 시간을 아껴드립니다 🍀</footer>
 
 <script>
-  // ── Constants ──────────────────────────────────────────────────────
-  const AGENT_ID  = "6a2bad37c46a466b31b0bc13";
-  const BASE_URL  = "https://langbridge.kosac.laivdata.com";
-  const LS_KEY    = "세특_api_key";
+  const BASE_URL = "https://langbridge.kosac.laivdata.com";
+  const LS_KEY   = "세특_agent_id";
 
   pdfjsLib.GlobalWorkerOptions.workerSrc =
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
   let selectedFile = null;
   let studentsData = [];
-  let subjectData  = "";
 
-  // ── 초기화: localStorage에서 키 불러오기 ────────────────────────────
+  // ── 초기화 ──────────────────────────────────────────────────────────
   window.addEventListener("DOMContentLoaded", () => {
     const saved = localStorage.getItem(LS_KEY);
     if (saved) {
-      document.getElementById("api-key-input").value = saved;
-      showKeySaved();
+      document.getElementById("agent-id-input").value = saved;
+      showIdSaved();
       unlockUpload();
     }
   });
 
-  // ── API 키 관련 ─────────────────────────────────────────────────────
-  function onApiKeyInput() {
-    const val = document.getElementById("api-key-input").value.trim();
-    document.getElementById("save-key-btn").disabled = val.length === 0;
-    // 입력 변경 시 저장됨 메시지 숨기기
-    document.getElementById("key-saved-msg").classList.add("hidden");
-    document.getElementById("header-key-status").classList.add("hidden");
+  // ── Agent ID 관련 ────────────────────────────────────────────────────
+  function onAgentIdInput() {
+    const val = document.getElementById("agent-id-input").value.trim();
+    document.getElementById("save-id-btn").disabled = !val;
+    document.getElementById("id-saved-msg").classList.add("hidden");
+    document.getElementById("header-id-status").classList.add("hidden");
   }
 
-  function saveApiKey() {
-    const val = document.getElementById("api-key-input").value.trim();
+  function saveAgentId() {
+    const val = document.getElementById("agent-id-input").value.trim();
     if (!val) return;
     localStorage.setItem(LS_KEY, val);
-    showKeySaved();
+    showIdSaved();
     unlockUpload();
   }
 
-  function clearApiKey() {
+  function clearAgentId() {
     localStorage.removeItem(LS_KEY);
-    document.getElementById("api-key-input").value = "";
-    document.getElementById("save-key-btn").disabled = true;
-    document.getElementById("key-saved-msg").classList.add("hidden");
-    document.getElementById("header-key-status").classList.add("hidden");
+    document.getElementById("agent-id-input").value = "";
+    document.getElementById("save-id-btn").disabled = true;
+    document.getElementById("id-saved-msg").classList.add("hidden");
+    document.getElementById("header-id-status").classList.add("hidden");
     lockUpload();
   }
 
-  function showKeySaved() {
-    document.getElementById("key-saved-msg").classList.remove("hidden");
-    document.getElementById("header-key-status").classList.remove("hidden");
-    document.getElementById("save-key-btn").disabled = false;
+  function showIdSaved() {
+    document.getElementById("id-saved-msg").classList.remove("hidden");
+    document.getElementById("header-id-status").classList.remove("hidden");
+    document.getElementById("save-id-btn").disabled = false;
   }
 
-  function toggleKeyVisibility() {
-    const input = document.getElementById("api-key-input");
-    const btn   = document.getElementById("toggle-key-visibility");
-    if (input.type === "password") {
-      input.type = "text";
-      btn.textContent = "🙈";
-    } else {
-      input.type = "password";
-      btn.textContent = "👁";
-    }
+  function toggleIdVisibility() {
+    const input = document.getElementById("agent-id-input");
+    const btn   = document.getElementById("toggle-id-vis");
+    input.type  = input.type === "password" ? "text" : "password";
+    btn.textContent = input.type === "password" ? "👁" : "🙈";
   }
 
-  function getApiKey() {
-    return localStorage.getItem(LS_KEY) || "";
-  }
+  function getAgentId() { return localStorage.getItem(LS_KEY) || ""; }
 
   // ── 업로드 섹션 잠금/해제 ───────────────────────────────────────────
-  function unlockUpload() {
-    document.getElementById("section-upload").classList.remove("section-disabled");
-  }
+  function unlockUpload() { document.getElementById("section-upload").classList.remove("section-disabled"); }
   function lockUpload() {
     document.getElementById("section-upload").classList.add("section-disabled");
     document.getElementById("generate-btn").disabled = true;
     selectedFile = null;
-    // 드롭존 초기화
     resetDropZone();
   }
 
   // ── 파일 처리 ───────────────────────────────────────────────────────
-  function handleDragOver(e) {
-    e.preventDefault();
-    document.getElementById("drop-zone").classList.add("dragover");
-  }
-  function handleDragLeave() {
-    document.getElementById("drop-zone").classList.remove("dragover");
-  }
+  function handleDragOver(e) { e.preventDefault(); document.getElementById("drop-zone").classList.add("dragover"); }
+  function handleDragLeave()  { document.getElementById("drop-zone").classList.remove("dragover"); }
   function handleDrop(e) {
     e.preventDefault();
     document.getElementById("drop-zone").classList.remove("dragover");
     const file = e.dataTransfer.files[0];
-    if (file && file.type === "application/pdf") setFile(file);
-    else showError("PDF 파일만 업로드할 수 있습니다.");
+    file && file.type === "application/pdf" ? setFile(file) : showError("PDF 파일만 업로드할 수 있습니다.");
   }
-  function handleFileSelect(e) {
-    const file = e.target.files[0];
-    if (file) setFile(file);
-  }
+  function handleFileSelect(e) { if (e.target.files[0]) setFile(e.target.files[0]); }
   function setFile(file) {
     selectedFile = file;
-    const zone = document.getElementById("drop-zone");
-    zone.classList.add("has-file");
-    document.getElementById("upload-icon").textContent = "✅";
+    document.getElementById("drop-zone").classList.add("has-file");
+    document.getElementById("upload-icon").textContent  = "✅";
     document.getElementById("upload-label").textContent = "파일이 선택되었습니다";
     document.getElementById("upload-label").style.color = "var(--green)";
     document.getElementById("file-info").classList.remove("hidden");
@@ -403,19 +328,16 @@
     document.getElementById("generate-btn").disabled = false;
     hideError();
   }
-  function formatSize(bytes) {
-    return bytes < 1024 * 1024
-      ? (bytes / 1024).toFixed(1) + " KB"
-      : (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  function formatSize(b) {
+    return b < 1048576 ? (b/1024).toFixed(1)+" KB" : (b/1048576).toFixed(1)+" MB";
   }
 
   // ── 메인 플로우 ─────────────────────────────────────────────────────
   async function startGeneration() {
     if (!selectedFile) return;
-    const apiKey = getApiKey();
-    if (!apiKey) {
-      showError("API 키를 먼저 입력하고 저장해 주세요.");
-      document.getElementById("section-apikey").scrollIntoView({ behavior: "smooth" });
+    const agentId = getAgentId();
+    if (!agentId) {
+      showError("Agent ID를 먼저 입력하고 저장해 주세요.");
       return;
     }
 
@@ -425,175 +347,113 @@
     showProgress();
 
     try {
-      setStep("extract", "active");
-      setProgress(15);
+      // 1. PDF 추출
+      setStep("extract", "active"); setProgress(15);
       const text = await extractPdfText(selectedFile);
-      setStep("extract", "done");
-      setProgress(40);
+      setStep("extract", "done");   setProgress(40);
 
-      setStep("session", "active");
-      setProgress(55);
-      const sessionId = await createSession(apiKey);
-      setStep("session", "done");
-      setProgress(65);
+      // 2. 세션 생성
+      setStep("session", "active"); setProgress(55);
+      const sessionId = await createSession(agentId);
+      setStep("session", "done");   setProgress(65);
 
-      setStep("agent", "active");
-      setProgress(75);
-      const result = await runAgent(sessionId, text, apiKey);
-      setStep("agent", "done");
-      setProgress(100);
+      // 3. Agent 실행
+      setStep("agent", "active"); setProgress(75);
+      const result = await runAgent(sessionId, text);
+      setStep("agent", "done");   setProgress(100);
 
-      setTimeout(() => {
-        hideProgress();
-        renderResults(result);
-      }, 400);
+      setTimeout(() => { hideProgress(); renderResults(result); }, 400);
 
     } catch (err) {
       hideProgress();
-      showError(err.message || "알 수 없는 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+      showError(err.message || "알 수 없는 오류가 발생했습니다.");
       document.getElementById("generate-btn").disabled = false;
     }
   }
 
   // ── PDF 추출 ────────────────────────────────────────────────────────
   async function extractPdfText(file) {
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    let fullText = "";
+    const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+    let text = "";
     for (let i = 1; i <= pdf.numPages; i++) {
-      const page    = await pdf.getPage(i);
+      const page = await pdf.getPage(i);
       const content = await page.getTextContent();
-      fullText += content.items.map(item => item.str).join(" ") + "\n";
+      text += content.items.map(it => it.str).join(" ") + "\n";
     }
-    if (!fullText.trim()) throw new Error("PDF에서 텍스트를 추출할 수 없습니다. 스캔 이미지 PDF는 지원되지 않습니다.");
-    return fullText;
+    if (!text.trim()) throw new Error("PDF에서 텍스트를 추출할 수 없습니다. 스캔 이미지 PDF는 지원되지 않습니다.");
+    return text;
   }
 
-  // ── API 호출 ────────────────────────────────────────────────────────
-  async function createSession(apiKey) {
+  // ── API 호출 (헤더에 커스텀 필드 없음 → CORS preflight 통과) ─────────
+  async function createSession(agentId) {
     const res = await fetch(`${BASE_URL}/sessions`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ agentId: AGENT_ID })
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agentId })
     });
-    if (res.status === 401 || res.status === 403) {
-      throw new Error("API 키가 올바르지 않습니다. 키를 확인하고 다시 저장해 주세요.");
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      throw new Error(`세션 생성 실패 (${res.status})\n${detail}`);
     }
-    if (!res.ok) throw new Error(`세션 생성 실패 (${res.status}). 네트워크 또는 서버 상태를 확인해 주세요.`);
     const data = await res.json();
-    if (!data.sessionId) throw new Error("세션 ID를 받지 못했습니다.");
+    if (!data.sessionId) throw new Error("세션 ID를 받지 못했습니다.\n응답: " + JSON.stringify(data).slice(0, 200));
     return data.sessionId;
   }
 
-async function runAgent(sessionId, userInput, apiKey) {
-
-  const res = await fetch(`${BASE_URL}/agents/run`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      sessionId,
-      query: {
-        userInput
-      }
-    })
-  });
-
-  if (res.status === 401 || res.status === 403) {
-    throw new Error("API 키가 올바르지 않습니다.");
+  async function runAgent(sessionId, userInput) {
+    const res = await fetch(`${BASE_URL}/agents/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId, query: { userInput } })
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      throw new Error(`AI 실행 실패 (${res.status})\n${detail}`);
+    }
+    const data = await res.json();
+    const parsed = extractStudents(data);
+    if (!parsed) {
+      throw new Error("AI 응답에서 학생 데이터를 찾을 수 없습니다.\n\n실제 응답:\n" + JSON.stringify(data, null, 2).slice(0, 500));
+    }
+    return parsed;
   }
 
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`AI 실행 실패 (${res.status})\n\n${txt}`);
-  }
-
-  const data = await res.json();
-
-  console.log("FULL RESPONSE");
-  console.log(data);
-
-  const parsed = extractStudentsFromResponse(data);
-
-  if (!parsed) {
-    throw new Error(
-      "AI 응답 형식을 찾을 수 없습니다.\n\n" +
-      JSON.stringify(data, null, 2)
-    );
-  }
-
-  return parsed;
-}
-
-function extractStudentsFromResponse(data) {
-
-  if (data?.response?.students) {
-    return data.response;
-  }
-
-  if (data?.response?.response?.students) {
-    return data.response.response;
-  }
-
-  if (data?.data?.response?.students) {
-    return data.data.response;
-  }
-
-  if (data?.params?.response?.students) {
-    return data.params.response;
-  }
-
-  if (data?.students) {
-    return data;
-  }
-
-  console.log("UNKNOWN RESPONSE");
-  console.log(data);
-
-  return null;
-}
-
-  function extractStudentsFromResponse(data) {
-    if (data && Array.isArray(data.students))                                              return data;
-    if (data?.response && Array.isArray(data.response.students))                          return data.response;
-    if (data?.response?.response && Array.isArray(data.response.response.students))       return data.response.response;
-    if (data?.data && Array.isArray(data.data.students))                                   return data.data;
-    if (data?.result && Array.isArray(data.result.students))                               return data.result;
+  function extractStudents(data) {
+    if (data?.students)                       return data;
+    if (data?.response?.students)             return data.response;
+    if (data?.response?.response?.students)   return data.response.response;
+    if (data?.data?.students)                 return data.data;
+    if (data?.result?.students)               return data.result;
     return null;
   }
 
   // ── 결과 렌더링 ─────────────────────────────────────────────────────
   function renderResults(response) {
     studentsData = response.students || [];
-    subjectData  = response.subject  || "";
+    const subject = response.subject || "";
 
-    document.getElementById("subject-badge-display").textContent =
-      subjectData ? `📚 ${subjectData}` : "";
+    document.getElementById("subject-badge-display").textContent = subject ? `📚 ${subject}` : "";
     document.getElementById("student-count").textContent = studentsData.length;
 
     const container = document.getElementById("students-container");
     container.innerHTML = "";
-
-    studentsData.forEach((student, idx) => {
+    studentsData.forEach((s, idx) => {
       const card = document.createElement("div");
       card.className = "student-card fade-up";
       card.style.animationDelay = `${idx * 0.07}s`;
       card.innerHTML = `
         <div class="flex items-center justify-between px-5 py-3 border-b" style="border-color:var(--line);background:#FAFCFF;">
           <div class="flex items-center gap-2">
-            <span class="text-base">👤</span>
-            <span class="font-bold text-base" style="color:var(--ink);">${escapeHtml(student.student_name)}</span>
-            <span class="text-xs px-2 py-0.5 rounded-full" style="background:var(--sky-light);color:var(--sky);">${idx + 1}번</span>
+            <span>👤</span>
+            <span class="font-bold text-base">${esc(s.student_name)}</span>
+            <span class="text-xs px-2 py-0.5 rounded-full" style="background:var(--sky-light);color:var(--sky);">${idx+1}번</span>
           </div>
-          <button class="copy-btn px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all"
+          <button class="copy-btn px-3 py-1.5 rounded-lg text-xs font-semibold border"
                   style="border-color:var(--sky);color:var(--sky);background:#fff;"
-                  onclick="copyOne(${idx}, this)">복사</button>
+                  onclick="copyOne(${idx},this)">복사</button>
         </div>
         <div class="px-5 py-4">
-          <div class="record-text">${escapeHtml(student.record)}</div>
+          <div class="record-text">${esc(s.record)}</div>
         </div>`;
       container.appendChild(card);
     });
@@ -605,13 +465,13 @@ function extractStudentsFromResponse(data) {
   // ── 복사 ────────────────────────────────────────────────────────────
   function copyOne(idx, btn) {
     const s = studentsData[idx];
-    copyToClipboard(`[${s.student_name}]\n${s.record}`, btn, "복사 완료!");
+    clip(`[${s.student_name}]\n${s.record}`, btn, "복사 완료!");
   }
   function copyAll() {
-    const text = studentsData.map(s => `[${s.student_name}]\n${s.record}`).join("\n\n");
-    copyToClipboard(text, document.getElementById("copy-all-btn"), "전체 복사 완료!");
+    clip(studentsData.map(s => `[${s.student_name}]\n${s.record}`).join("\n\n"),
+         document.getElementById("copy-all-btn"), "전체 복사 완료!");
   }
-  function copyToClipboard(text, btn, label) {
+  function clip(text, btn, label) {
     navigator.clipboard.writeText(text).then(() => {
       const orig = btn.innerHTML;
       btn.classList.add("copied");
@@ -626,14 +486,14 @@ function extractStudentsFromResponse(data) {
     document.getElementById("progress-section").scrollIntoView({ behavior: "smooth" });
   }
   function hideProgress() { document.getElementById("progress-section").classList.add("hidden"); }
-  function setProgress(pct) { document.getElementById("progress-bar").style.width = pct + "%"; }
+  function setProgress(p) { document.getElementById("progress-bar").style.width = p + "%"; }
   function setStep(key, state) {
     const el   = document.getElementById(`step-${key}`);
     const icon = document.getElementById(`icon-${key}`);
     if (state === "active") {
       el.style.color = "var(--sky)";
       icon.innerHTML = `<span class="spinner"></span>`;
-    } else if (state === "done") {
+    } else {
       el.style.color = "var(--green)";
       icon.textContent = "✓";
       icon.style.borderColor = "var(--green)";
@@ -649,39 +509,30 @@ function extractStudentsFromResponse(data) {
 
   // ── 리셋 ────────────────────────────────────────────────────────────
   function resetApp() {
-    selectedFile = null;
-    studentsData = [];
+    selectedFile = null; studentsData = [];
     resetDropZone();
     document.getElementById("file-input").value = "";
     document.getElementById("generate-btn").disabled = true;
     document.getElementById("results-section").classList.add("hidden");
-    hideProgress();
-    hideError();
-    // 진행 아이콘 초기화
+    hideProgress(); hideError();
     ["extract","session","agent"].forEach(k => {
-      const el = document.getElementById(`step-${k}`);
+      document.getElementById(`step-${k}`).style.color = "var(--muted)";
       const icon = document.getElementById(`icon-${k}`);
-      el.style.color = "var(--muted)";
-      icon.textContent = "○";
-      icon.style.borderColor = "";
+      icon.textContent = "○"; icon.style.borderColor = "";
     });
     setProgress(0);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function resetDropZone() {
-    const zone = document.getElementById("drop-zone");
-    zone.classList.remove("has-file","dragover");
-    document.getElementById("upload-icon").textContent = "📄";
+    document.getElementById("drop-zone").classList.remove("has-file","dragover");
+    document.getElementById("upload-icon").textContent  = "📄";
     document.getElementById("upload-label").textContent = "여기를 클릭하거나 PDF를 끌어다 놓으세요";
     document.getElementById("upload-label").style.color = "var(--sky)";
     document.getElementById("file-info").classList.add("hidden");
   }
 
-  // ── 유틸 ────────────────────────────────────────────────────────────
-  function escapeHtml(str) {
-    return String(str)
-      .replace(/&/g,"&amp;").replace(/</g,"&lt;")
-      .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  function esc(str) {
+    return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
   }
 </script>
 </body>
