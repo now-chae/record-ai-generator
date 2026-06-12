@@ -488,29 +488,75 @@
     return data.sessionId;
   }
 
-  async function runAgent(sessionId, userInput, apiKey) {
-    const res = await fetch(`${BASE_URL}/agents/run`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey
-      },
-      body: JSON.stringify({ sessionId, query: { userInput } })
-    });
-    if (res.status === 401 || res.status === 403) {
-      throw new Error("API 키가 올바르지 않습니다. 키를 확인하고 다시 저장해 주세요.");
-    }
-    if (!res.ok) throw new Error(`AI 실행 실패 (${res.status}). 잠시 후 다시 시도해 주세요.`);
+async function runAgent(sessionId, userInput, apiKey) {
 
-    const data   = await res.json();
-    const parsed = extractStudentsFromResponse(data);
-    if (!parsed) {
-      throw new Error(
-        `AI 응답에서 학생 데이터를 찾을 수 없습니다.\n\n실제 응답 구조:\n${JSON.stringify(data, null, 2).slice(0, 400)}`
-      );
-    }
-    return parsed;
+  const res = await fetch(`${BASE_URL}/agents/run`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey
+    },
+    body: JSON.stringify({
+      sessionId,
+      query: {
+        userInput
+      }
+    })
+  });
+
+  if (res.status === 401 || res.status === 403) {
+    throw new Error("API 키가 올바르지 않습니다.");
   }
+
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`AI 실행 실패 (${res.status})\n\n${txt}`);
+  }
+
+  const data = await res.json();
+
+  console.log("FULL RESPONSE");
+  console.log(data);
+
+  const parsed = extractStudentsFromResponse(data);
+
+  if (!parsed) {
+    throw new Error(
+      "AI 응답 형식을 찾을 수 없습니다.\n\n" +
+      JSON.stringify(data, null, 2)
+    );
+  }
+
+  return parsed;
+}
+
+function extractStudentsFromResponse(data) {
+
+  if (data?.response?.students) {
+    return data.response;
+  }
+
+  if (data?.response?.response?.students) {
+    return data.response.response;
+  }
+
+  if (data?.data?.response?.students) {
+    return data.data.response;
+  }
+
+  if (data?.params?.response?.students) {
+    return data.params.response;
+  }
+
+  if (data?.students) {
+    return data;
+  }
+
+  console.log("UNKNOWN RESPONSE");
+  console.log(data);
+
+  return null;
+}
 
   function extractStudentsFromResponse(data) {
     if (data && Array.isArray(data.students))                                              return data;
