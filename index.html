@@ -428,7 +428,7 @@
     const res = await fetch(`${BASE_URL}/agents/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId, query: { userInput } })
+      body: JSON.stringify({ sessionId, query: { userInput, activity } })
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
@@ -501,7 +501,7 @@
                   onclick="copyOne(${idx},this)">복사</button>
         </div>
         <div class="px-5 py-4">
-          <div class="record-text">${esc(s.record)}</div>
+          <div class="record-text">${esc(s.records)}</div>
         </div>`;
       container.appendChild(card);
     });
@@ -513,10 +513,10 @@
   // ── 복사 ────────────────────────────────────────────────────────────
   function copyOne(idx, btn) {
     const s = studentsData[idx];
-    clip(`[${s.student_name}]\n${s.record}`, btn, "복사 완료!");
+    clip(`[${s.student_name}]\n${s.records}`, btn, "복사 완료!");
   }
   function copyAll() {
-    clip(studentsData.map(s => `[${s.student_name}]\n${s.record}`).join("\n\n"),
+    clip(studentsData.map(s => `[${s.student_name}]\n${s.records}`).join("\n\n"),
          document.getElementById("copy-all-btn"), "전체 복사 완료!");
   }
   function clip(text, btn, label) {
