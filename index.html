@@ -72,7 +72,7 @@
     }
     .fade-up { animation: fadeUp 0.35s ease both; }
 
-    .record-text {
+    .records-text {
       background: #F8FAFD; border: 1px solid var(--line); border-radius: 8px;
       padding: 12px 14px; line-height: 1.75; font-size: 14.5px;
       white-space: pre-wrap; word-break: keep-all;
@@ -501,7 +501,7 @@
                   onclick="copyOne(${idx},this)">복사</button>
         </div>
         <div class="px-5 py-4">
-          <div class="record-text">${esc(s.records)}</div>
+          <div class="records-text">${esc(s.records)}</div>
         </div>`;
       container.appendChild(card);
     });
