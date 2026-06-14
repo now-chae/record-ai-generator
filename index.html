@@ -501,10 +501,7 @@
                   onclick="copyOne(${idx},this)">복사</button>
         </div>
         <div class="px-5 py-4">
-          ${(s.records || []).map((r, ri) => `
-            <div class="record-text ${ri > 0 ? 'mt-2' : ''}">
-              <span class="text-xs font-semibold mr-1" style="color:var(--sky);">✦${ri+1}</span>${esc(r)}
-            </div>`).join('')}
+          <div class="record-text">${esc((s.records || []).join(' '))}</div>
         </div>`;
       container.appendChild(card);
     });
@@ -516,11 +513,10 @@
   // ── 복사 ────────────────────────────────────────────────────────────
   function copyOne(idx, btn) {
     const s = studentsData[idx];
-    const recs = (s.records || []).map((r, i) => `${i+1}. ${r}`).join('\n');
-    clip(`[${s.student_name}]\n${recs}`, btn, "복사 완료!");
+    clip(`[${s.student_name}]\n${(s.records||[]).join(' ')}`, btn, "복사 완료!");
   }
   function copyAll() {
-    clip(studentsData.map(s => `[${s.student_name}]\n${(s.records||[]).map((r,i)=>`${i+1}. ${r}`).join('\n')}`).join("\n\n"),
+    clip(studentsData.map(s => `[${s.student_name}]\n${(s.records||[]).join(' ')}`).join("\n\n"),
          document.getElementById("copy-all-btn"), "전체 복사 완료!");
   }
   function clip(text, btn, label) {
