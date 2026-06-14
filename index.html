@@ -428,7 +428,7 @@
     const res = await fetch(`${BASE_URL}/agents/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId, query: { userInput, activity } })
+      body: JSON.stringify({ sessionId, query: { userInput } })
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
