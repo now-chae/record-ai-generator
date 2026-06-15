@@ -353,6 +353,9 @@
   }
 
   // ── 메인 플로우 ─────────────────────────────────────────────────────
+  // 임베딩 모델 4000토큰 제한 → 청크당 최대 5000자(약 2500토큰)로 분할 전송
+  const CHUNK_SIZE = 5000;
+
   async function startGeneration() {
     if (!selectedFile) return;
     const agentId = getAgentId();
@@ -369,12 +372,12 @@
     try {
       const activity = document.getElementById("activity-input")?.value.trim() || "";
 
-      // 1. PDF → 청크 분할
+      // 1. PDF 추출 → 청크 분할
       setStep("extract", "active"); setProgress(10);
       const chunks = await extractPdfChunks(selectedFile);
       setStep("extract", "done");   setProgress(30);
 
-      // 2~3. 청크별 세션 생성 + Agent 실행 → 결과 합산
+      // 2~3. 청크별로 세션 생성 + Agent 실행 → 결과 합산
       setStep("session", "active");
       setStep("agent", "active");
 
@@ -382,23 +385,27 @@
       let subject = "";
 
       for (let i = 0; i < chunks.length; i++) {
+        // 진행률: 30% ~ 95% 구간을 청크 수로 나눔
         const pct = 30 + Math.round(((i + 0.5) / chunks.length) * 65);
         setProgress(pct);
         setStepLabel("session", `AI 세션 연결 중… (${i+1}/${chunks.length})`);
         setStepLabel("agent",   `AI가 세특 작성 중… (${i+1}/${chunks.length})`);
 
         const sessionId = await createSession(agentId);
-        const result = await runAgent(sessionId, chunks[i], activity);
+        setStepDone("session");
 
+        const result = await runAgent(sessionId, chunks[i], activity);
         if (result.subject) subject = result.subject;
         if (result.students) allStudents = mergeStudents(allStudents, result.students);
       }
 
-      setStep("session", "done");
-      setStep("agent", "done");
+      setStepDone("agent");
       setProgress(100);
 
-      setTimeout(() => { hideProgress(); renderResults({ subject, students: allStudents }); }, 400);
+      setTimeout(() => {
+        hideProgress();
+        renderResults({ subject, students: allStudents });
+      }, 400);
 
     } catch (err) {
       hideProgress();
@@ -407,10 +414,10 @@
     }
   }
 
-  // 같은 이름 학생 records 합치기, 새 학생은 추가
+  // 같은 이름 학생이면 records 합치고, 새 학생이면 추가
   function mergeStudents(existing, incoming) {
     const map = {};
-    existing.forEach(s => { map[s.student_name] = { ...s }; });
+    existing.forEach(s => { map[s.student_name] = s; });
     incoming.forEach(s => {
       if (map[s.student_name]) {
         map[s.student_name].records = [
@@ -424,10 +431,7 @@
     return Object.values(map);
   }
 
-  // ── PDF 추출 ────────────────────────────────────────────────────────
-  // 청크당 5000자 (임베딩 모델 4000토큰 제한 대응)
-  const CHUNK_SIZE = 2000; // 임베딩 모델 4000토큰 제한, 한글 1자≈2토큰 기준 안전값
-
+  // ── PDF 추출 → 청크 배열 반환 ──────────────────────────────────────
   async function extractPdfChunks(file) {
     const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
     let fullText = "";
@@ -438,19 +442,20 @@
     }
     if (!fullText.trim()) throw new Error("PDF에서 텍스트를 추출할 수 없습니다. 스캔 이미지 PDF는 지원되지 않습니다.");
 
-    // 공백 기준으로 CHUNK_SIZE 단위 분할
+    // CHUNK_SIZE 단위로 분할 (단어 중간 자르지 않도록 공백 기준)
     const chunks = [];
     let start = 0;
     while (start < fullText.length) {
       let end = start + CHUNK_SIZE;
       if (end < fullText.length) {
+        // 공백 위치로 끝 조정
         const spaceIdx = fullText.lastIndexOf(" ", end);
         if (spaceIdx > start) end = spaceIdx;
       }
       chunks.push(fullText.slice(start, end).trim());
       start = end;
     }
-    console.log(`PDF ${chunks.length}개 청크로 분할 (총 ${fullText.length}자)`);
+    console.log(`PDF 청크 ${chunks.length}개로 분할 (총 ${fullText.length}자)`);
     return chunks;
   }
 
@@ -471,7 +476,6 @@
   }
 
   async function runAgent(sessionId, userInput, activity) {
-    console.log(`[runAgent] userInput 길이: ${userInput.length}자, activity: ${activity}`);
     const res = await fetch(`${BASE_URL}/agents/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -594,6 +598,7 @@
       icon.style.borderColor = "var(--green)";
     }
   }
+  function setStepDone(key) { setStep(key, "done"); }
   function setStepLabel(key, label) {
     const el = document.getElementById(`label-${key}`);
     if (el) el.textContent = label;
