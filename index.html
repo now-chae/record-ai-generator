@@ -386,7 +386,7 @@
         await runAgent(sessionId, text, activity);
       setStep("agent", "done");   setProgress(100);
 
-      setTimeout(() => { hideProgress(); renderResults(result); }, 400);
+      setTimeout(() => { hideProgress(); renderResults(result); document.getElementById("generate-btn").disabled = false; }, 400);
 
     } catch (err) {
       hideProgress();
