@@ -206,15 +206,15 @@
       <div class="space-y-3">
         <div id="step-extract" class="flex items-center gap-3 text-sm" style="color:var(--muted);">
           <div id="icon-extract" class="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full border-2 border-current">○</div>
-          <span>PDF 텍스트 추출 중…</span>
+          <span id="label-extract">PDF 텍스트 추출 중…</span>
         </div>
         <div id="step-session" class="flex items-center gap-3 text-sm" style="color:var(--muted);">
           <div id="icon-session" class="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full border-2 border-current">○</div>
-          <span>AI 세션 연결 중…</span>
+          <span id="label-session">AI 세션 연결 중…</span>
         </div>
         <div id="step-agent" class="flex items-center gap-3 text-sm" style="color:var(--muted);">
           <div id="icon-agent" class="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full border-2 border-current">○</div>
-          <span>AI가 세특 작성 중… (잠시 기다려 주세요)</span>
+          <span id="label-agent">AI가 세특 작성 중… (잠시 기다려 주세요)</span>
         </div>
       </div>
       <div class="mt-4 rounded-full overflow-hidden h-2" style="background:var(--sky-light);">
@@ -353,6 +353,9 @@
   }
 
   // ── 메인 플로우 ─────────────────────────────────────────────────────
+  // 임베딩 모델 4000토큰 제한 → 청크당 최대 5000자(약 2500토큰)로 분할 전송
+  const CHUNK_SIZE = 5000;
+
   async function startGeneration() {
     if (!selectedFile) return;
     const agentId = getAgentId();
@@ -367,26 +370,42 @@
     showProgress();
 
     try {
-      // 1. PDF 추출
-      setStep("extract", "active"); setProgress(15);
-      const text = await extractPdfText(selectedFile);
-      setStep("extract", "done");   setProgress(40);
+      const activity = document.getElementById("activity-input")?.value.trim() || "";
 
-      // 2. 세션 생성
-      setStep("session", "active"); setProgress(55);
-      const sessionId = await createSession(agentId);
-      setStep("session", "done");   setProgress(65);
+      // 1. PDF 추출 → 청크 분할
+      setStep("extract", "active"); setProgress(10);
+      const chunks = await extractPdfChunks(selectedFile);
+      setStep("extract", "done");   setProgress(30);
 
-      // 3. Agent 실행
-      setStep("agent", "active"); setProgress(75);
-      const activity =
-        document.getElementById("activity-input").value.trim();
+      // 2~3. 청크별로 세션 생성 + Agent 실행 → 결과 합산
+      setStep("session", "active");
+      setStep("agent", "active");
 
-      const result =
-        await runAgent(sessionId, text, activity);
-      setStep("agent", "done");   setProgress(100);
+      let allStudents = [];
+      let subject = "";
 
-      setTimeout(() => { hideProgress(); renderResults(result); }, 400);
+      for (let i = 0; i < chunks.length; i++) {
+        // 진행률: 30% ~ 95% 구간을 청크 수로 나눔
+        const pct = 30 + Math.round(((i + 0.5) / chunks.length) * 65);
+        setProgress(pct);
+        setStepLabel("session", `AI 세션 연결 중… (${i+1}/${chunks.length})`);
+        setStepLabel("agent",   `AI가 세특 작성 중… (${i+1}/${chunks.length})`);
+
+        const sessionId = await createSession(agentId);
+        setStepDone("session");
+
+        const result = await runAgent(sessionId, chunks[i], activity);
+        if (result.subject) subject = result.subject;
+        if (result.students) allStudents = mergeStudents(allStudents, result.students);
+      }
+
+      setStepDone("agent");
+      setProgress(100);
+
+      setTimeout(() => {
+        hideProgress();
+        renderResults({ subject, students: allStudents });
+      }, 400);
 
     } catch (err) {
       hideProgress();
@@ -395,24 +414,56 @@
     }
   }
 
-  // ── PDF 추출 ────────────────────────────────────────────────────────
-  async function extractPdfText(file) {
+  // 같은 이름 학생이면 records 합치고, 새 학생이면 추가
+  function mergeStudents(existing, incoming) {
+    const map = {};
+    existing.forEach(s => { map[s.student_name] = s; });
+    incoming.forEach(s => {
+      if (map[s.student_name]) {
+        map[s.student_name].records = [
+          ...(map[s.student_name].records || []),
+          ...(s.records || [])
+        ];
+      } else {
+        map[s.student_name] = { ...s };
+      }
+    });
+    return Object.values(map);
+  }
+
+  // ── PDF 추출 → 청크 배열 반환 ──────────────────────────────────────
+  async function extractPdfChunks(file) {
     const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
-    let text = "";
+    let fullText = "";
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      text += content.items.map(it => it.str).join(" ") + "\n";
+      const cont = await page.getTextContent();
+      fullText += cont.items.map(it => it.str).join(" ") + "\n";
     }
-    if (!text.trim()) throw new Error("PDF에서 텍스트를 추출할 수 없습니다. 스캔 이미지 PDF는 지원되지 않습니다.");
-    return text;
+    if (!fullText.trim()) throw new Error("PDF에서 텍스트를 추출할 수 없습니다. 스캔 이미지 PDF는 지원되지 않습니다.");
+
+    // CHUNK_SIZE 단위로 분할 (단어 중간 자르지 않도록 공백 기준)
+    const chunks = [];
+    let start = 0;
+    while (start < fullText.length) {
+      let end = start + CHUNK_SIZE;
+      if (end < fullText.length) {
+        // 공백 위치로 끝 조정
+        const spaceIdx = fullText.lastIndexOf(" ", end);
+        if (spaceIdx > start) end = spaceIdx;
+      }
+      chunks.push(fullText.slice(start, end).trim());
+      start = end;
+    }
+    console.log(`PDF 청크 ${chunks.length}개로 분할 (총 ${fullText.length}자)`);
+    return chunks;
   }
 
   // ── API 호출 (헤더에 커스텀 필드 없음 → CORS preflight 통과) ─────────
   async function createSession(agentId) {
     const res = await fetch(`${BASE_URL}/sessions`, {
       method: "POST",
-      headers: { "Content-Type": "text/plain" },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ agentId })
     });
     if (!res.ok) {
@@ -427,7 +478,7 @@
   async function runAgent(sessionId, userInput, activity) {
     const res = await fetch(`${BASE_URL}/agents/run`, {
       method: "POST",
-      headers: { "Content-Type": "text/plain" },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sessionId, query: { userInput, activity } })
     });
     if (!res.ok) {
@@ -546,6 +597,11 @@
       icon.textContent = "✓";
       icon.style.borderColor = "var(--green)";
     }
+  }
+  function setStepDone(key) { setStep(key, "done"); }
+  function setStepLabel(key, label) {
+    const el = document.getElementById(`label-${key}`);
+    if (el) el.textContent = label;
   }
 
   // ── 에러 ────────────────────────────────────────────────────────────
