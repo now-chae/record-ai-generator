@@ -412,7 +412,7 @@
   async function createSession(agentId) {
     const res = await fetch(`${BASE_URL}/sessions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ agentId })
     });
     if (!res.ok) {
@@ -427,7 +427,7 @@
   async function runAgent(sessionId, userInput, activity) {
     const res = await fetch(`${BASE_URL}/agents/run`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ sessionId, query: { userInput, activity } })
     });
     if (!res.ok) {
