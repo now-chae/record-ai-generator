@@ -426,7 +426,7 @@
 
   // ── PDF 추출 ────────────────────────────────────────────────────────
   // 청크당 5000자 (임베딩 모델 4000토큰 제한 대응)
-  const CHUNK_SIZE = 5000;
+  const CHUNK_SIZE = 2000; // 임베딩 모델 4000토큰 제한, 한글 1자≈2토큰 기준 안전값
 
   async function extractPdfChunks(file) {
     const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
@@ -471,6 +471,7 @@
   }
 
   async function runAgent(sessionId, userInput, activity) {
+    console.log(`[runAgent] userInput 길이: ${userInput.length}자, activity: ${activity}`);
     const res = await fetch(`${BASE_URL}/agents/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
