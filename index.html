@@ -408,36 +408,37 @@
 
     // 1. 학교명/날짜/IP/성명 워터마크 제거
     //    예) "인천백석초등학교/2026.06.15 10:14/10.130.***.40/전채원"
-    text = text.replace(/[^\s]+\/\d{4}\.\d{2}\.\d{2}[^
-]*/g, "");
+    //    PDF.js는 공백으로 이어붙이므로 슬래시+날짜 패턴으로 정확하게 제거
+    text = text.replace(/\S+\/\d{4}\.\d{2}\.\d{2}\s+\d{2}:\d{2}\/[\S]+\/[가-힣]+\s*/g, "");
 
-    // 2. 페이지 번호 제거 예) "1   10 /"  "2   10 /"
+    // 2. 날짜 단독 표현 제거 예) "2026.06.15."
+    text = text.replace(/\d{4}\.\d{2}\.\d{2}\.?\s*/g, "");
+
+    // 3. "N학년도 N학년 N반 교과평가..." 헤더 제거
+    text = text.replace(/\d{4}학년도\s*\d+학년\s*\d+반\s*교과평가\S*\s*/g, "");
+
+    // 4. 페이지 번호 제거 예) "1   10 /"  "10   10 /"
     text = text.replace(/\d{1,2}\s+\d{1,2}\s*\/\s*/g, "");
 
-    // 3. 반복 헤더 제거
-    text = text.replace(/반\/번호\s*성명\s*영역\s*성취기준\s*평가요소\s*단계(\s*평가결과)?/g, "");
+    // 5. 반복 헤더 제거
+    text = text.replace(/반\/번호\s*성명\s*영역\s*성취기준\s*평가요소\s*단계(\s*평가결과)?\s*/g, "");
 
-    // 4. 페이지 하단 학교명 단독 줄 제거
-    text = text.replace(/^[^
-]*초등학교\s*$/gm, "");
+    // 6. 학교명 제거 예) "인천백석초등학교"
+    text = text.replace(/[가-힣]+초등학교\s*/g, "");
 
-    // 5. 페이지 넘어가며 중복된 학생 블록 제거
-    //    "숫자 이름" 패턴이 연속으로 나오면 두 번째부터 제거
-    //    예) "3 최지훈 미적 체험 를 발견할..." → 앞 블록과 합치기
+    // 7. 페이지 넘어가며 중복된 학생 블록 제거
     const seenStudents = new Set();
     text = text.replace(/(\d{1,2})\s+([가-힣]{2,4})\s+(표현|미적\s*체험|감상)/g, (match, num, name, area) => {
       const key = `${num}_${name}`;
       if (seenStudents.has(key)) {
-        // 이미 나온 학생+영역 조합 → 번호+이름 제거하고 영역만 남기기
         return area;
       }
       seenStudents.add(key);
       return match;
     });
 
-    // 6. 연속 공백/빈 줄 정리
-    text = text.replace(/\s{3,}/g, "  ").replace(/
-{3,}/g, "\n\n").trim();
+    // 8. 연속 공백/빈 줄 정리
+    text = text.replace(/[ \t]{3,}/g, "  ").replace(/\n{3,}/g, "\n\n").trim();
 
     console.log("전처리 완료:", text.length, "자");
     console.log(text);
