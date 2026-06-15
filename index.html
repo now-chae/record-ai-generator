@@ -395,16 +395,52 @@
     }
   }
 
-  // ── PDF 추출 ────────────────────────────────────────────────────────
+  // ── PDF 추출 + 전처리 ──────────────────────────────────────────────
   async function extractPdfText(file) {
     const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
     let text = "";
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      text += content.items.map(it => it.str).join(" ") + "\n";
+      const cont = await page.getTextContent();
+      text += cont.items.map(it => it.str).join(" ") + "\n";
     }
     if (!text.trim()) throw new Error("PDF에서 텍스트를 추출할 수 없습니다. 스캔 이미지 PDF는 지원되지 않습니다.");
+
+    // 1. 학교명/날짜/IP/성명 워터마크 제거
+    //    예) "인천백석초등학교/2026.06.15 10:14/10.130.***.40/전채원"
+    text = text.replace(/[^\s]+\/\d{4}\.\d{2}\.\d{2}[^
+]*/g, "");
+
+    // 2. 페이지 번호 제거 예) "1   10 /"  "2   10 /"
+    text = text.replace(/\d{1,2}\s+\d{1,2}\s*\/\s*/g, "");
+
+    // 3. 반복 헤더 제거
+    text = text.replace(/반\/번호\s*성명\s*영역\s*성취기준\s*평가요소\s*단계(\s*평가결과)?/g, "");
+
+    // 4. 페이지 하단 학교명 단독 줄 제거
+    text = text.replace(/^[^
+]*초등학교\s*$/gm, "");
+
+    // 5. 페이지 넘어가며 중복된 학생 블록 제거
+    //    "숫자 이름" 패턴이 연속으로 나오면 두 번째부터 제거
+    //    예) "3 최지훈 미적 체험 를 발견할..." → 앞 블록과 합치기
+    const seenStudents = new Set();
+    text = text.replace(/(\d{1,2})\s+([가-힣]{2,4})\s+(표현|미적\s*체험|감상)/g, (match, num, name, area) => {
+      const key = `${num}_${name}`;
+      if (seenStudents.has(key)) {
+        // 이미 나온 학생+영역 조합 → 번호+이름 제거하고 영역만 남기기
+        return area;
+      }
+      seenStudents.add(key);
+      return match;
+    });
+
+    // 6. 연속 공백/빈 줄 정리
+    text = text.replace(/\s{3,}/g, "  ").replace(/
+{3,}/g, "\n\n").trim();
+
+    console.log("전처리 완료:", text.length, "자");
+    console.log(text);
     return text;
   }
 
