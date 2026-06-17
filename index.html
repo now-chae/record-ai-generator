@@ -206,15 +206,15 @@
       <div class="space-y-3">
         <div id="step-extract" class="flex items-center gap-3 text-sm" style="color:var(--muted);">
           <div id="icon-extract" class="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full border-2 border-current">○</div>
-          <span id="label-extract">PDF 텍스트 추출 중…</span>
+          <span>PDF 텍스트 추출 중…</span>
         </div>
         <div id="step-session" class="flex items-center gap-3 text-sm" style="color:var(--muted);">
           <div id="icon-session" class="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full border-2 border-current">○</div>
-          <span id="label-session">AI 세션 연결 중…</span>
+          <span>AI 세션 연결 중…</span>
         </div>
         <div id="step-agent" class="flex items-center gap-3 text-sm" style="color:var(--muted);">
           <div id="icon-agent" class="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full border-2 border-current">○</div>
-          <span id="label-agent">AI가 세특 작성 중… (잠시 기다려 주세요)</span>
+          <span>AI가 세특 작성 중… (잠시 기다려 주세요)</span>
         </div>
       </div>
       <div class="mt-4 rounded-full overflow-hidden h-2" style="background:var(--sky-light);">
@@ -266,7 +266,6 @@
 
   let selectedFile = null;
   let studentsData = [];
-  let studentBlocks = [];
 
   // ── 초기화 ──────────────────────────────────────────────────────────
   window.addEventListener("DOMContentLoaded", () => {
@@ -368,177 +367,32 @@
     showProgress();
 
     try {
-      const activity = document.getElementById("activity-input").value.trim();
+      // 1. PDF 추출
+      setStep("extract", "active"); setProgress(15);
+      const text = await extractPdfText(selectedFile);
+      setStep("extract", "done");   setProgress(40);
 
-      // 1. PDF 전체 텍스트 추출
-      setStep("extract", "active"); setProgress(10);
-      const fullText = await extractPdfText(selectedFile);
-      setStep("extract", "done");   setProgress(20);
+      // 2. 세션 생성
+      setStep("session", "active"); setProgress(55);
+      const sessionId = await createSession(agentId);
+      setStep("session", "done");   setProgress(65);
 
-      // 2. 학생 블록 파싱 (번호+이름 패턴으로 분리)
-      studentBlocks = parseStudentBlocks(fullText);
-      if (studentBlocks.length === 0) {
-        throw new Error("학생 데이터를 찾을 수 없습니다. PDF를 확인해 주세요.");
-      }
-      console.log(`학생 ${studentBlocks.length}명 파싱 완료`);
+      // 3. Agent 실행
+      setStep("agent", "active"); setProgress(75);
+      const activity =
+        document.getElementById("activity-input").value.trim();
 
-      // 3. 학생별 개별 에이전트 호출
-      setStep("session", "active");
-      setStep("agent",   "active");
-      const allResults = [];
-      let subject = "";
+      const result =
+        await runAgent(sessionId, text, activity);
+      setStep("agent", "done");   setProgress(100);
 
-      for (let i = 0; i < studentBlocks.length; i++) {
-        const block = studentBlocks[i];
-        const pct = 20 + Math.round(((i + 1) / studentBlocks.length) * 75);
-        setProgress(pct);
-        setStepLabel("session", `AI 세션 연결 중… (${i+1}/${studentBlocks.length})`);
-        setStepLabel("agent",   `세특 작성 중… (${i+1}/${studentBlocks.length}) ${block.name}`);
-
-        try {
-          const sessionId = await createSession(agentId);
-          // 학생 1명 데이터만 전달 — 다른 학생 데이터 절대 섞이지 않음
-          const result = await runAgentRaw(sessionId, block.text, activity);
-          const studentResult = extractStudentResult(result, block.name);
-          if (studentResult) {
-            if (studentResult.subject) subject = studentResult.subject;
-            allResults.push(studentResult);
-          } else {
-            console.warn(`${block.name} 세특 생성 실패, 건너뜀`);
-          }
-        } catch (err) {
-          console.warn(`${block.name} 오류:`, err.message);
-        }
-      }
-
-      if (allResults.length === 0) {
-        throw new Error("세특 생성에 실패했습니다. 에이전트 설정을 확인해 주세요.");
-      }
-
-      // 4. 중복 검열 → 중복 학생 재생성 (최대 3라운드)
-      setStepLabel("agent", "중복 문장 검사 중…");
-      let finalResults = allResults;
-      const MAX_ROUNDS = 3;
-
-      for (let round = 1; round <= MAX_ROUNDS; round++) {
-        const dupStudents = findDuplicateStudents(finalResults);
-        if (dupStudents.size === 0) {
-          console.log(`라운드 ${round}: 중복 없음 → 완료`);
-          break;
-        }
-        console.log(`라운드 ${round}: 재생성 대상`, [...dupStudents]);
-        setStepLabel("agent", `중복 문장 재생성 중… (${round}/${MAX_ROUNDS}라운드)`);
-
-        for (let i = 0; i < finalResults.length; i++) {
-          const s = finalResults[i];
-          if (!dupStudents.has(s.student_name)) continue;
-
-          const block = studentBlocks.find(b => b.name === s.student_name);
-          if (!block) continue;
-
-          setStepLabel("agent", `재생성 중… ${s.student_name}`);
-          try {
-            const sessionId = await createSession(agentId);
-            const result = await runAgentRaw(sessionId, block.text, activity);
-            const newResult = extractStudentResult(result, block.name);
-            if (newResult) {
-              if (newResult.subject) subject = newResult.subject;
-              finalResults[i] = newResult;
-              console.log(`${s.student_name} 재생성 완료`);
-            }
-          } catch (err) {
-            console.warn(`${s.student_name} 재생성 실패:`, err.message);
-          }
-        }
-      }
-
-      setStepDone("session");
-      setStepDone("agent");
-      setProgress(100);
-
-      setTimeout(() => {
-        hideProgress();
-        renderResults({ subject, students: finalResults });
-        document.getElementById("generate-btn").disabled = false;
-      }, 400);
+      setTimeout(() => { hideProgress(); renderResults(result); document.getElementById("generate-btn").disabled = false; }, 400);
 
     } catch (err) {
       hideProgress();
       showError(err.message || "알 수 없는 오류가 발생했습니다.");
       document.getElementById("generate-btn").disabled = false;
     }
-  }
-
-  // ── 학생 블록 파싱 ──────────────────────────────────────────────────
-  function parseStudentBlocks(text) {
-    const blocks = [];
-    // "번호 이름" 패턴 — 영역 없이도 인식 (페이지 경계 잘림 대응)
-    const pattern = /(?<![가-힣\d])(\d{1,2})\s+([가-힣]{2,4})(?=\s)/g;
-    const matches = [];
-    let m;
-    while ((m = pattern.exec(text)) !== null) {
-      matches.push({ index: m.index, num: parseInt(m[1]), name: m[2] });
-    }
-
-    // 번호가 순서대로 증가하는 것만 유효 학생으로 인정 (중복 헤더 제거)
-    const seen = new Set();
-    let lastNum = 0;
-    const unique = [];
-    for (const match of matches) {
-      const key = `${match.num}_${match.name}`;
-      if (seen.has(key)) continue;           // 같은 학생 두 번 나오면 첫 번째만
-      if (match.num < lastNum) continue;     // 번호가 역행하면 헤더로 간주
-      seen.add(key);
-      unique.push(match);
-      lastNum = match.num;
-    }
-
-    // 각 학생 블록 텍스트 추출
-    unique.forEach((u, i) => {
-      const end = i + 1 < unique.length ? unique[i + 1].index : text.length;
-      const blockText = text.slice(u.index, end).trim();
-      if (blockText.length > 10) {
-        blocks.push({ name: u.name, num: u.num, text: blockText });
-      }
-    });
-
-    console.log("파싱된 학생:", blocks.map(b => `${b.num}번 ${b.name}(${b.text.length}자)`).join(", "));
-    return blocks;
-  }
-
-  // ── 중복 학생 탐색 ─────────────────────────────────────────────────
-  // 유사도 70% 이상인 문장을 가진 뒷 번호 학생 이름 Set 반환
-  function findDuplicateStudents(students) {
-    const dupNames = new Set();
-    const allSentences = [];
-
-    students.forEach(s => {
-      (s.records || []).forEach(rec => {
-        allSentences.push({ text: rec, studentName: s.student_name });
-      });
-    });
-
-    function similarity(a, b) {
-      const wa = new Set(a.replace(/[.,。]/g, "").split(/\s+/).filter(w => w.length > 1));
-      const wb = new Set(b.replace(/[.,。]/g, "").split(/\s+/).filter(w => w.length > 1));
-      const inter = [...wa].filter(w => wb.has(w)).length;
-      return inter / Math.max(wa.size, wb.size);
-    }
-
-    for (let i = 0; i < allSentences.length; i++) {
-      for (let j = i + 1; j < allSentences.length; j++) {
-        const a = allSentences[i], b = allSentences[j];
-        if (a.studentName === b.studentName) continue;
-        if (similarity(a.text, b.text) >= 0.7) {
-          // 뒷 번호(인덱스 큰 쪽) 학생이 재생성 대상
-          const idxA = students.findIndex(s => s.student_name === a.studentName);
-          const idxB = students.findIndex(s => s.student_name === b.studentName);
-          dupNames.add(idxA > idxB ? a.studentName : b.studentName);
-          console.warn(`중복: [${a.studentName}] ↔ [${b.studentName}] "${a.text.slice(0, 30)}…"`);
-        }
-      }
-    }
-    return dupNames;
   }
 
   // ── PDF 추출 + 전처리 ──────────────────────────────────────────────
@@ -553,32 +407,45 @@
     if (!text.trim()) throw new Error("PDF에서 텍스트를 추출할 수 없습니다. 스캔 이미지 PDF는 지원되지 않습니다.");
 
     // 1. 학교명/날짜/IP/성명 워터마크 제거
+    //    예) "인천백석초등학교/2026.06.15 10:14/10.130.***.40/전채원"
+    //    PDF.js는 공백으로 이어붙이므로 슬래시+날짜 패턴으로 정확하게 제거
     text = text.replace(/\S+\/\d{4}\.\d{2}\.\d{2}\s+\d{2}:\d{2}\/[\S]+\/[가-힣]+\s*/g, "");
-    // 2. 날짜 단독 표현 제거
+
+    // 2. 날짜 단독 표현 제거 예) "2026.06.15."
     text = text.replace(/\d{4}\.\d{2}\.\d{2}\.?\s*/g, "");
+
     // 3. "N학년도 N학년 N반 교과평가..." 헤더 제거
     text = text.replace(/\d{4}학년도\s*\d+학년\s*\d+반\s*교과평가\S*\s*/g, "");
-    // 4. 페이지 번호 제거
+
+    // 4. 페이지 번호 제거 예) "1   10 /"  "10   10 /"
     text = text.replace(/\d{1,2}\s+\d{1,2}\s*\/\s*/g, "");
+
     // 5. 반복 헤더 제거
     text = text.replace(/반\/번호\s*성명\s*영역\s*성취기준\s*평가요소\s*단계(\s*평가결과)?\s*/g, "");
-    // 6. 학교명 제거
+
+    // 6. 학교명 제거 예) "인천백석초등학교"
     text = text.replace(/[가-힣]+초등학교\s*/g, "");
-    // 7. 중복 학생 블록 제거
+
+    // 7. 페이지 넘어가며 중복된 학생 블록 제거
     const seenStudents = new Set();
     text = text.replace(/(\d{1,2})\s+([가-힣]{2,4})\s+(표현|미적\s*체험|감상)/g, (match, num, name, area) => {
       const key = `${num}_${name}`;
-      if (seenStudents.has(key)) return area;
+      if (seenStudents.has(key)) {
+        return area;
+      }
       seenStudents.add(key);
       return match;
     });
+
     // 8. 연속 공백/빈 줄 정리
     text = text.replace(/[ \t]{3,}/g, "  ").replace(/\n{3,}/g, "\n\n").trim();
+
     console.log("전처리 완료:", text.length, "자");
+    console.log(text);
     return text;
   }
 
-  // ── API 호출 ─────────────────────────────────────────────────────────
+  // ── API 호출 (헤더에 커스텀 필드 없음 → CORS preflight 통과) ─────────
   async function createSession(agentId) {
     const res = await fetch(`${BASE_URL}/sessions`, {
       method: "POST",
@@ -594,7 +461,7 @@
     return data.sessionId;
   }
 
-  async function runAgentRaw(sessionId, userInput, activity) {
+  async function runAgent(sessionId, userInput, activity) {
     const res = await fetch(`${BASE_URL}/agents/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -605,121 +472,47 @@
       throw new Error(`AI 실행 실패 (${res.status})\n${detail}`);
     }
     const data = await res.json();
-    console.log("RESPONSE:", JSON.stringify(data).slice(0, 200));
+    console.log("FULL RESPONSE");
+    console.log(data);
+    const parsed = extractStudents(data);
+    if (!parsed) {
+      throw new Error("AI 응답에서 학생 데이터를 찾을 수 없습니다.\n\n실제 응답:\n" + JSON.stringify(data, null, 2).slice(0, 500));
+    }
+    return parsed;
+  }
+
+  function extractStudents(data) {
+
+  // 현재 LangBridge 응답
+  if (data?.params?.response?.students) {
+    return data.params.response;
+  }
+
+  // 예비 호환
+  if (data?.students) {
     return data;
   }
 
-  // 응답에서 특정 필드 추출 (중첩 구조 + _toolCallResults 대응)
-  function extractField(data, field) {
-    // 직접 경로
-    const directPaths = [
-      data,
-      data?.params?.response,
-      data?.params,
-      data?.response?.response,
-      data?.response,
-      data?.data,
-      data?.result,
-    ];
-    for (const obj of directPaths) {
-      if (obj?.[field] !== undefined) return obj[field];
-    }
-
-    // _toolCallResults 안에서 탐색
-    const toolResults = data?._toolCallResults;
-    if (toolResults && typeof toolResults === "object") {
-      for (const key of Object.keys(toolResults)) {
-        const val = toolResults[key];
-        if (Array.isArray(val)) {
-          for (const item of val) {
-            if (item?.[field] !== undefined) return item[field];
-          }
-        } else if (val?.[field] !== undefined) {
-          return val[field];
-        }
-      }
-    }
-    return undefined;
+  if (data?.response?.students) {
+    return data.response;
   }
 
-  // 학생 1명 세특 결과 추출 - 응답 구조 전체 탐색
-  function extractStudentResult(data, studentName) {
-    console.log("FULL RESPONSE 파싱 시도:", JSON.stringify(data).slice(0, 800));
-
-    // records 배열 또는 record 문자열을 가진 객체 추출
-    const tryExtract = (obj) => {
-      if (!obj || typeof obj !== "object" || Array.isArray(obj)) return null;
-
-      // records 배열인 경우
-      if (Array.isArray(obj.records) && obj.records.length > 0) {
-        return { student_name: obj.student_name || studentName, subject: obj.subject || "", records: obj.records };
-      }
-      // record 단일 문자열인 경우 → 배열로 감싸기
-      if (typeof obj.record === "string" && obj.record.trim()) {
-        return { student_name: obj.student_name || studentName, subject: obj.subject || "", records: [obj.record] };
-      }
-      return null;
-    };
-
-    // 가능한 모든 경로 시도
-    const paths = [
-      data?.record,
-      data?.params?.record,
-      data?.response?.record,
-      data?.params?.response?.record,
-      data?.params?.response,
-      data?.response?.response,
-      data?.response,
-      data?.params,
-      data,
-    ];
-    for (const p of paths) {
-      const r = tryExtract(p);
-      if (r) return r;
-    }
-
-    // _toolCallResults 순회
-    const toolResults = data?._toolCallResults;
-    if (toolResults && typeof toolResults === "object") {
-      for (const key of Object.keys(toolResults)) {
-        const val = toolResults[key];
-        for (const p of [val, val?.record, val?.response, val?.params?.record]) {
-          const r = tryExtract(p); if (r) return r;
-        }
-        if (Array.isArray(val)) {
-          for (const item of val) {
-            const r = tryExtract(item) || tryExtract(item?.record);
-            if (r) return r;
-          }
-        }
-      }
-    }
-
-    // 마지막 수단: 객체 전체를 재귀 탐색
-    function deepSearch(obj, depth = 0) {
-      if (depth > 5 || !obj || typeof obj !== "object") return null;
-      const r = tryExtract(obj);
-      if (r) return r;
-      for (const key of Object.keys(obj)) {
-        const r2 = deepSearch(obj[key], depth + 1);
-        if (r2) return r2;
-      }
-      return null;
-    }
-    const deep = deepSearch(data);
-    if (deep) return deep;
-
-    console.warn("extractStudentResult 최종 실패. 전체 응답:", JSON.stringify(data).slice(0, 1000));
-    return null;
+  if (data?.response?.response?.students) {
+    return data.response.response;
   }
 
-  function setStepDone(key) { setStep(key, "done"); }
-  function setStepLabel(key, label) {
-    const el = document.getElementById(`label-${key}`);
-    if (el) el.textContent = label;
+  if (data?.data?.students) {
+    return data.data;
   }
 
-    // ── 결과 렌더링 ─────────────────────────────────────────────────────
+  if (data?.result?.students) {
+    return data.result;
+  }
+
+  return null;
+}
+
+  // ── 결과 렌더링 ─────────────────────────────────────────────────────
   function renderResults(response) {
     studentsData = response.students || [];
     const subject = response.subject || "";
