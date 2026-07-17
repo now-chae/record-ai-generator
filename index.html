@@ -674,7 +674,7 @@
     return union === 0 ? 0 : inter / union;
   }
 
-  const DUPLICATE_THRESHOLD = 0.6; // 이 값 이상이면 교사에게 중복 가능성만 안내
+  const DUPLICATE_THRESHOLD = 0.55; // 이 값 이상이면 교사에게 중복 가능성만 안내
 
   // ── API 호출 (헤더에 커스텀 필드 없음 → CORS preflight 통과) ─────────
   async function createSession(agentId) {
