@@ -51,22 +51,15 @@
     .copy-btn { transition: background 0.15s, color 0.15s; }
     .copy-btn.copied { background: var(--green) !important; color: #fff !important; border-color: var(--green) !important; }
 
-    /* 회전(rotate) 트랜스폼 대신 opacity만 사용하는 점 3개 로더.
-       일부 모바일 브라우저에서 rotate 애니메이션이 인접 텍스트에 렌더링 오류를
-       일으키는 문제가 있어 transform 없이 구현합니다. */
-    .spinner {
-      display: inline-flex; align-items: center; gap: 3px;
-      width: 16px; height: 16px; justify-content: center;
-      contain: layout style paint; isolation: isolate;
+    /* 처리 중 표시용 파란색 원형 스피너 */
+    .blue-ring-loader {
+      display: block; width: 18px; height: 18px; border-radius: 50%;
+      border: 2.5px solid var(--sky-mid); border-top-color: var(--sky);
+      animation: blueRingRotate 0.75s linear infinite;
+      box-sizing: border-box;
+      font-size: 0; line-height: 0; color: transparent;
     }
-    .spinner span {
-      width: 4px; height: 4px; border-radius: 50%;
-      background: var(--sky);
-      animation: dotPulse 1s ease-in-out infinite;
-    }
-    .spinner span:nth-child(2) { animation-delay: 0.15s; }
-    .spinner span:nth-child(3) { animation-delay: 0.3s; }
-    @keyframes dotPulse { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+    @keyframes blueRingRotate { to { transform: rotate(360deg); } }
 
     .step-badge {
       display: inline-flex; align-items: center; justify-content: center;
@@ -76,6 +69,12 @@
     }
     .step-badge.done { background: var(--green); }
     #progress-section [id^="icon-"] { contain: layout style paint; isolation: isolate; }
+    #agent-progress-detail {
+      align-items: center; gap: 6px;
+      margin: 4px 0 0 32px; padding: 6px 11px; border-radius: 999px;
+      background: var(--sky-light); color: var(--sky); font-size: 12px; font-weight: 600;
+    }
+    #agent-progress-detail:not(.hidden) { display: inline-flex; }
 
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(12px); }
@@ -94,6 +93,25 @@
       padding: 3px 14px; font-size: 13px; font-weight: 600;
     }
     .section-disabled { opacity: 0.4; pointer-events: none; }
+
+    .review-card {
+      background: #fff; border: 1.5px solid var(--line); border-radius: 12px;
+      padding: 14px; transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .review-card:focus-within { border-color: var(--sky); box-shadow: 0 0 0 3px rgba(74,144,217,0.10); }
+    .review-input, .review-textarea {
+      width: 100%; border: 1px solid var(--line); border-radius: 9px;
+      background: #FAFCFF; padding: 9px 11px; font-size: 14px;
+    }
+    .review-input:focus, .review-textarea:focus { outline: none; border-color: var(--sky); }
+    .review-textarea { min-height: 150px; resize: vertical; line-height: 1.65; }
+    .result-editor {
+      width: 100%; min-height: 135px; resize: vertical; line-height: 1.75;
+      background: #F8FAFD; border: 1px solid var(--line); border-radius: 8px;
+      padding: 12px 14px; font-size: 14.5px;
+    }
+    .result-editor:focus { outline: none; border-color: var(--sky); box-shadow: 0 0 0 3px rgba(74,144,217,0.10); }
+    .duplicate-warning { background:#FFF6E5; color:#9A6700; border:1px solid #F3D38A; }
 
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-thumb { background: var(--sky-mid); border-radius: 3px; }
@@ -227,9 +245,37 @@
           <div id="icon-agent" class="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full border-2 border-current">○</div>
           <span>AI가 세특 작성 중… (잠시 기다려 주세요)</span>
         </div>
+        <div id="agent-progress-detail" class="hidden"></div>
       </div>
       <div class="mt-4 rounded-full overflow-hidden h-2" style="background:var(--sky-light);">
         <div id="progress-bar" class="h-2 rounded-full" style="width:0%;background:var(--sky);"></div>
+      </div>
+    </section>
+
+    <!-- Step 3: 학생별 분류 결과 확인 및 수정 -->
+    <section id="review-section" class="hidden bg-white rounded-2xl shadow-sm border border-slate-100 p-6 fade-up">
+      <div class="flex items-center justify-between gap-3 mb-2">
+        <div class="flex items-center gap-2">
+          <span class="step-badge">2</span>
+          <h2 class="font-semibold text-base">학생별 분류 결과 확인</h2>
+        </div>
+        <span id="review-count" class="text-xs px-3 py-1.5 rounded-full font-semibold" style="background:var(--sky-light);color:var(--sky);"></span>
+      </div>
+      <p class="text-xs mb-4" style="color:var(--muted);">
+        학생 이름과 평가기록이 정확히 묶였는지 확인하세요. 잘못 분류된 내용은 직접 고치고, 누락된 학생은 추가할 수 있습니다.
+      </p>
+      <div id="review-warning" class="hidden mb-4 rounded-lg px-3 py-2.5 text-xs" style="background:#FFF6E5;color:#9A6700;border:1px solid #F3D38A;"></div>
+      <div id="review-container" class="space-y-3"></div>
+      <button type="button" onclick="addReviewStudent()"
+        class="mt-4 w-full py-2.5 rounded-xl text-sm font-semibold border-2"
+        style="border-color:var(--sky-mid);color:var(--sky);background:var(--sky-light);">＋ 학생 추가</button>
+      <div class="grid grid-cols-2 gap-3 mt-4">
+        <button type="button" onclick="cancelReview()"
+          class="py-3 rounded-xl text-sm font-semibold border-2"
+          style="border-color:var(--line);color:var(--muted);">PDF 다시 선택</button>
+        <button id="confirm-review-btn" type="button" onclick="generateFromReviewedBlocks()"
+          class="py-3 rounded-xl text-sm font-semibold text-white"
+          style="background:var(--green);">확인 후 세특 생성</button>
       </div>
     </section>
 
@@ -277,6 +323,11 @@
 
   let selectedFile = null;
   let studentsData = [];
+  let reviewedStudentBlocks = [];
+  let currentSessionId = "";
+  let currentActivity = "";
+  let previousStudentTexts = [];
+  let duplicateRefreshTimer = null;
 
   // ── 초기화 ──────────────────────────────────────────────────────────
   window.addEventListener("DOMContentLoaded", () => {
@@ -383,60 +434,153 @@
       const text = await extractPdfText(selectedFile);
       setStep("extract", "done");   setProgress(40);
 
-      // 2. 세션 생성
-      setStep("session", "active"); setProgress(55);
-      const sessionId = await createSession(agentId);
-      setStep("session", "done");   setProgress(65);
-
-      // 3. Agent 실행 (학생별로 텍스트를 분리하여 한 명씩 반복 호출)
-      setStep("agent", "active"); setProgress(75);
-      const activity =
-        document.getElementById("activity-input").value.trim();
-
       const studentBlocks = splitStudentsFromText(text);
-      const total = studentBlocks.length;
-      const finalStudents = [];
-      let subjectName = "";
-      const agentLabelEl = document.querySelector("#step-agent span:last-child");
-
-      for (let i = 0; i < studentBlocks.length; i++) {
-        const block = studentBlocks[i];
-        if (agentLabelEl) agentLabelEl.textContent = `AI가 세특 작성 중… (${i + 1}/${total}명)`;
-        setProgress(75 + Math.round((i / total) * 20));
-
-        let parsed = await runAgent(sessionId, block.text, activity);
-        let student = parsed.students[0];
-        subjectName = subjectName || parsed.subject || "";
-
-        // 이미 생성된 다른 학생들과 세특 내용이 많이 겹치면 다르게 재작성 요청
-        let attempt = 0;
-        while (
-          attempt < MAX_REGEN_ATTEMPTS &&
-          finalStudents.some(s =>
-            textSimilarity((student.records || []).join(" "), (s.records || []).join(" ")) >= DUPLICATE_THRESHOLD
-          )
-        ) {
-          attempt++;
-          parsed = await runAgent(
-            sessionId,
-            block.text,
-            `${activity}\n(주의: 이전에 생성한 다른 학생의 세특 문장과 표현이 겹치지 않도록 문장 구성과 어휘를 다르게 하여 다시 작성해줘)`
-          );
-          student = parsed.students[0];
-        }
-
-        finalStudents.push(student);
-      }
-
-      setStep("agent", "done"); setProgress(100);
-      const result = { subject: subjectName, students: finalStudents };
-
-      setTimeout(() => { hideProgress(); renderResults(result); document.getElementById("generate-btn").disabled = false; }, 400);
+      hideProgress();
+      renderStudentReview(studentBlocks);
+      document.getElementById("generate-btn").disabled = false;
 
     } catch (err) {
       hideProgress();
       showError(err.message || "알 수 없는 오류가 발생했습니다.");
       document.getElementById("generate-btn").disabled = false;
+    }
+  }
+
+  // ── 학생별 분류 결과 확인/수정 ─────────────────────────────────────
+  function renderStudentReview(blocks) {
+    reviewedStudentBlocks = blocks.map(block => ({ name: block.name || "", text: block.text || "" }));
+    const section = document.getElementById("review-section");
+    section.classList.remove("hidden");
+    renderReviewCards();
+
+    const warning = document.getElementById("review-warning");
+    const uncertain = reviewedStudentBlocks.length === 1 && !reviewedStudentBlocks[0].name;
+    warning.classList.toggle("hidden", !uncertain);
+    warning.textContent = uncertain
+      ? "학생 구분 기준을 찾지 못해 PDF 전체가 하나의 블록으로 표시되었습니다. 학생별로 내용을 나누고 이름을 입력해 주세요."
+      : "";
+    section.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function renderReviewCards() {
+    const container = document.getElementById("review-container");
+    container.innerHTML = "";
+    reviewedStudentBlocks.forEach((block, idx) => {
+      const card = document.createElement("div");
+      card.className = "review-card";
+      card.innerHTML = `
+        <div class="flex items-center justify-between gap-3 mb-3">
+          <strong class="text-sm">학생 ${idx + 1}</strong>
+          <button type="button" class="text-xs px-2.5 py-1 rounded-lg" style="color:var(--red);background:var(--red-light);"
+            onclick="removeReviewStudent(${idx})">삭제</button>
+        </div>
+        <label class="block text-xs font-semibold mb-1" style="color:var(--muted);">학생 이름</label>
+        <input class="review-input mb-3" data-role="name" data-index="${idx}" placeholder="학생 이름" />
+        <label class="block text-xs font-semibold mb-1" style="color:var(--muted);">이 학생의 평가기록</label>
+        <textarea class="review-textarea" data-role="text" data-index="${idx}" placeholder="평가기록을 입력하세요"></textarea>`;
+      card.querySelector('[data-role="name"]').value = block.name;
+      card.querySelector('[data-role="text"]').value = block.text;
+      container.appendChild(card);
+    });
+    document.getElementById("review-count").textContent = `${reviewedStudentBlocks.length}명 분류됨`;
+  }
+
+  function syncReviewInputs() {
+    document.querySelectorAll("#review-container [data-role]").forEach(el => {
+      const idx = Number(el.dataset.index);
+      if (!reviewedStudentBlocks[idx]) return;
+      reviewedStudentBlocks[idx][el.dataset.role] = el.value.trim();
+    });
+  }
+
+  function addReviewStudent() {
+    syncReviewInputs();
+    reviewedStudentBlocks.push({ name: "", text: "" });
+    renderReviewCards();
+    const cards = document.querySelectorAll(".review-card");
+    cards[cards.length - 1]?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  function removeReviewStudent(idx) {
+    syncReviewInputs();
+    reviewedStudentBlocks.splice(idx, 1);
+    renderReviewCards();
+  }
+
+  function cancelReview() {
+    reviewedStudentBlocks = [];
+    document.getElementById("review-section").classList.add("hidden");
+    resetApp();
+  }
+
+  async function generateFromReviewedBlocks() {
+    syncReviewInputs();
+    hideError();
+    if (reviewedStudentBlocks.length === 0) {
+      showError("학생을 한 명 이상 추가해 주세요.");
+      return;
+    }
+    const invalidIndex = reviewedStudentBlocks.findIndex(block => !block.name || !block.text);
+    if (invalidIndex >= 0) {
+      showError(`${invalidIndex + 1}번째 학생의 이름과 평가기록을 모두 입력해 주세요.`);
+      return;
+    }
+    const names = reviewedStudentBlocks.map(block => block.name);
+    if (new Set(names).size !== names.length) {
+      showError("학생 이름이 중복되어 있습니다. 분류 결과를 다시 확인해 주세요.");
+      return;
+    }
+
+    const button = document.getElementById("confirm-review-btn");
+    button.disabled = true;
+    button.style.opacity = "0.5";
+    document.getElementById("review-section").classList.add("hidden");
+    showProgress();
+
+    try {
+      setStep("session", "active"); setProgress(55);
+      const sessionId = await createSession(getAgentId());
+      currentSessionId = sessionId;
+      setStep("session", "done"); setProgress(65);
+
+      setStep("agent", "active"); setProgress(75);
+      const activity = document.getElementById("activity-input").value.trim();
+      currentActivity = activity;
+      const total = reviewedStudentBlocks.length;
+      const finalStudents = [];
+      let subjectName = "";
+      const agentLabelEl = document.querySelector("#step-agent span:last-child");
+      const agentDetailEl = document.getElementById("agent-progress-detail");
+
+      for (let i = 0; i < total; i++) {
+        const block = reviewedStudentBlocks[i];
+        if (agentLabelEl) agentLabelEl.textContent = "AI가 학생별 세특을 작성하고 있습니다";
+        if (agentDetailEl) {
+          agentDetailEl.classList.remove("hidden");
+          agentDetailEl.textContent = `현재 ${i + 1}/${total}명 · ${block.name} 생성 중`;
+        }
+        setProgress(75 + Math.round((i / total) * 20));
+
+        const parsed = await runAgent(sessionId, block.text, activity);
+        if (!parsed.students?.length) throw new Error(`${block.name} 학생의 생성 결과가 비어 있습니다.`);
+        let student = parsed.students[0];
+        student.student_name = block.name;
+        subjectName = subjectName || parsed.subject || "";
+        finalStudents.push(student);
+      }
+
+      setStep("agent", "done"); setProgress(100);
+      if (agentLabelEl) agentLabelEl.textContent = `학생 ${total}명 세특 생성 완료`;
+      if (agentDetailEl) agentDetailEl.textContent = `✓ 전체 ${total}명 생성이 완료되었습니다`;
+      const result = { subject: subjectName, students: finalStudents };
+      setTimeout(() => { hideProgress(); renderResults(result); }, 400);
+    } catch (err) {
+      hideProgress();
+      document.getElementById("review-section").classList.remove("hidden");
+      showError(err.message || "알 수 없는 오류가 발생했습니다.");
+    } finally {
+      button.disabled = false;
+      button.style.opacity = "1";
     }
   }
 
@@ -530,8 +674,7 @@
     return union === 0 ? 0 : inter / union;
   }
 
-  const DUPLICATE_THRESHOLD = 0.6; // 이 값 이상 겹치면 다른 학생과 중복으로 판단해 재생성
-  const MAX_REGEN_ATTEMPTS = 2;    // 학생 1명당 최대 재생성 시도 횟수
+  const DUPLICATE_THRESHOLD = 0.6; // 이 값 이상이면 교사에게 중복 가능성만 안내
 
   // ── API 호출 (헤더에 커스텀 필드 없음 → CORS preflight 통과) ─────────
   async function createSession(agentId) {
@@ -623,6 +766,7 @@
   // ── 결과 렌더링 ─────────────────────────────────────────────────────
   function renderResults(response) {
     studentsData = response.students || [];
+    previousStudentTexts = new Array(studentsData.length).fill(null);
     const subject = response.subject || "";
 
     document.getElementById("subject-badge-display").textContent = subject ? `📚 ${subject}` : "";
@@ -630,6 +774,7 @@
 
     const container = document.getElementById("students-container");
     container.innerHTML = "";
+    const duplicateMap = findDuplicateStudents(studentsData);
     studentsData.forEach((s, idx) => {
       const card = document.createElement("div");
       card.className = "student-card fade-up";
@@ -641,18 +786,124 @@
             <span class="font-bold text-base">${esc(s.student_name)}</span>
             <span class="text-xs px-2 py-0.5 rounded-full" style="background:var(--sky-light);color:var(--sky);">${idx+1}번</span>
           </div>
-          <button class="copy-btn px-3 py-1.5 rounded-lg text-xs font-semibold border"
-                  style="border-color:var(--sky);color:var(--sky);background:#fff;"
-                  onclick="copyOne(${idx},this)">복사</button>
+          <div class="flex items-center gap-2">
+            <button id="regen-btn-${idx}" class="px-3 py-1.5 rounded-lg text-xs font-semibold border"
+                    style="border-color:var(--green);color:var(--green);background:#fff;"
+                    onclick="regenerateOne(${idx})">다시 생성</button>
+            <button class="copy-btn px-3 py-1.5 rounded-lg text-xs font-semibold border"
+                    style="border-color:var(--sky);color:var(--sky);background:#fff;"
+                    onclick="copyOne(${idx},this)">복사</button>
+          </div>
         </div>
         <div class="px-5 py-4">
-          <div class="record-text">${esc((s.records || []).join(' '))}</div>
+          <div id="duplicate-${idx}" class="${duplicateMap.has(idx) ? '' : 'hidden'} duplicate-warning rounded-lg px-3 py-2 text-xs mb-3">
+            ${duplicateMap.has(idx) ? `⚠ ${esc(duplicateMap.get(idx).join(', '))} 학생과 표현이 유사할 수 있습니다.` : ''}
+          </div>
+          <textarea id="result-editor-${idx}" class="result-editor" oninput="onResultEdit(${idx},this)"></textarea>
+          <div class="flex items-center justify-between mt-2">
+            <span id="char-count-${idx}" class="text-xs" style="color:var(--muted);"></span>
+            <button id="restore-btn-${idx}" onclick="restorePrevious(${idx})" disabled
+              class="text-xs underline disabled:opacity-30" style="color:var(--muted);">이전 결과로 되돌리기</button>
+          </div>
         </div>`;
+      const editor = card.querySelector(`#result-editor-${idx}`);
+      editor.value = (s.records || []).join(" ");
       container.appendChild(card);
+      updateCharCount(idx);
     });
 
     document.getElementById("results-section").classList.remove("hidden");
     document.getElementById("results-section").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function onResultEdit(idx, textarea) {
+    if (!studentsData[idx]) return;
+    studentsData[idx].records = [textarea.value];
+    updateCharCount(idx);
+    clearTimeout(duplicateRefreshTimer);
+    duplicateRefreshTimer = setTimeout(refreshDuplicateWarnings, 350);
+  }
+
+  function updateCharCount(idx) {
+    const editor = document.getElementById(`result-editor-${idx}`);
+    const count = document.getElementById(`char-count-${idx}`);
+    if (editor && count) count.textContent = `${editor.value.length}자`;
+  }
+
+  async function regenerateOne(idx) {
+    if (!currentSessionId || !reviewedStudentBlocks[idx] || !studentsData[idx]) {
+      showError("재생성에 필요한 작업 정보가 없습니다. PDF부터 다시 처리해 주세요.");
+      return;
+    }
+    hideError();
+    const button = document.getElementById(`regen-btn-${idx}`);
+    const editor = document.getElementById(`result-editor-${idx}`);
+    const originalLabel = button.textContent;
+    previousStudentTexts[idx] = editor.value;
+    button.disabled = true;
+    button.textContent = "생성 중…";
+    editor.disabled = true;
+
+    try {
+      const block = reviewedStudentBlocks[idx];
+      const parsed = await runAgent(currentSessionId, block.text, currentActivity);
+      if (!parsed.students?.length) throw new Error(`${block.name} 학생의 재생성 결과가 비어 있습니다.`);
+      const student = parsed.students[0];
+      student.student_name = block.name;
+      studentsData[idx] = student;
+      editor.value = (student.records || []).join(" ");
+      updateCharCount(idx);
+      document.getElementById(`restore-btn-${idx}`).disabled = false;
+      refreshDuplicateWarnings();
+    } catch (err) {
+      previousStudentTexts[idx] = null;
+      showError(err.message || "재생성 중 오류가 발생했습니다.");
+    } finally {
+      button.disabled = false;
+      button.textContent = originalLabel;
+      editor.disabled = false;
+    }
+  }
+
+  function restorePrevious(idx) {
+    if (previousStudentTexts[idx] == null || !studentsData[idx]) return;
+    const editor = document.getElementById(`result-editor-${idx}`);
+    const current = editor.value;
+    editor.value = previousStudentTexts[idx];
+    studentsData[idx].records = [editor.value];
+    previousStudentTexts[idx] = current;
+    updateCharCount(idx);
+    refreshDuplicateWarnings();
+  }
+
+  function findDuplicateStudents(students) {
+    const result = new Map();
+    for (let i = 0; i < students.length; i++) {
+      for (let j = i + 1; j < students.length; j++) {
+        const similarity = textSimilarity(
+          (students[i].records || []).join(" "),
+          (students[j].records || []).join(" ")
+        );
+        if (similarity >= DUPLICATE_THRESHOLD) {
+          if (!result.has(i)) result.set(i, []);
+          if (!result.has(j)) result.set(j, []);
+          result.get(i).push(students[j].student_name);
+          result.get(j).push(students[i].student_name);
+        }
+      }
+    }
+    return result;
+  }
+
+  function refreshDuplicateWarnings() {
+    const duplicateMap = findDuplicateStudents(studentsData);
+    studentsData.forEach((student, idx) => {
+      const box = document.getElementById(`duplicate-${idx}`);
+      if (!box) return;
+      const names = duplicateMap.get(idx);
+      box.classList.toggle("hidden", !names);
+      box.textContent = names ? `⚠ ${names.join(', ')} 학생과 표현이 유사할 수 있습니다.` : "";
+    });
   }
 
   // ── 복사 ────────────────────────────────────────────────────────────
@@ -685,11 +936,16 @@
     const icon = document.getElementById(`icon-${key}`);
     if (state === "active") {
       el.style.color = "var(--sky)";
-      icon.innerHTML = `<span class="spinner"><span></span><span></span><span></span></span>`;
+      icon.style.border = "none";
+      icon.replaceChildren();
+      const loader = document.createElement("span");
+      loader.className = "blue-ring-loader";
+      loader.setAttribute("aria-hidden", "true");
+      icon.appendChild(loader);
     } else {
       el.style.color = "var(--green)";
       icon.textContent = "✓";
-      icon.style.borderColor = "var(--green)";
+      icon.style.border = "2px solid var(--green)";
     }
   }
 
@@ -702,17 +958,22 @@
 
   // ── 리셋 ────────────────────────────────────────────────────────────
   function resetApp() {
-    selectedFile = null; studentsData = [];
+    selectedFile = null; studentsData = []; reviewedStudentBlocks = [];
+    currentSessionId = ""; currentActivity = ""; previousStudentTexts = [];
+    clearTimeout(duplicateRefreshTimer); duplicateRefreshTimer = null;
     resetDropZone();
     document.getElementById("file-input").value = "";
     document.getElementById("generate-btn").disabled = true;
     document.getElementById("results-section").classList.add("hidden");
+    document.getElementById("review-section").classList.add("hidden");
     hideProgress(); hideError();
     ["extract","session","agent"].forEach(k => {
       document.getElementById(`step-${k}`).style.color = "var(--muted)";
       const icon = document.getElementById(`icon-${k}`);
-      icon.textContent = "○"; icon.style.borderColor = "";
+      icon.textContent = "○"; icon.style.border = "";
     });
+    const agentDetail = document.getElementById("agent-progress-detail");
+    agentDetail.classList.add("hidden"); agentDetail.textContent = "";
     setProgress(0);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
