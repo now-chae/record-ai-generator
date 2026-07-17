@@ -51,12 +51,22 @@
     .copy-btn { transition: background 0.15s, color 0.15s; }
     .copy-btn.copied { background: var(--green) !important; color: #fff !important; border-color: var(--green) !important; }
 
-    @keyframes spin { to { transform: rotate(360deg); } }
+    /* 회전(rotate) 트랜스폼 대신 opacity만 사용하는 점 3개 로더.
+       일부 모바일 브라우저에서 rotate 애니메이션이 인접 텍스트에 렌더링 오류를
+       일으키는 문제가 있어 transform 없이 구현합니다. */
     .spinner {
-      display: inline-block; width: 16px; height: 16px;
-      border: 2px solid var(--sky-mid); border-top-color: var(--sky);
-      border-radius: 50%; animation: spin 0.7s linear infinite;
+      display: inline-flex; align-items: center; gap: 3px;
+      width: 16px; height: 16px; justify-content: center;
+      contain: layout style paint; isolation: isolate;
     }
+    .spinner span {
+      width: 4px; height: 4px; border-radius: 50%;
+      background: var(--sky);
+      animation: dotPulse 1s ease-in-out infinite;
+    }
+    .spinner span:nth-child(2) { animation-delay: 0.15s; }
+    .spinner span:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes dotPulse { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
 
     .step-badge {
       display: inline-flex; align-items: center; justify-content: center;
@@ -65,6 +75,7 @@
       background: var(--sky); color: #fff; flex-shrink: 0;
     }
     .step-badge.done { background: var(--green); }
+    #progress-section [id^="icon-"] { contain: layout style paint; isolation: isolate; }
 
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(12px); }
@@ -377,14 +388,48 @@
       const sessionId = await createSession(agentId);
       setStep("session", "done");   setProgress(65);
 
-      // 3. Agent 실행
+      // 3. Agent 실행 (학생별로 텍스트를 분리하여 한 명씩 반복 호출)
       setStep("agent", "active"); setProgress(75);
       const activity =
         document.getElementById("activity-input").value.trim();
 
-      const result =
-        await runAgent(sessionId, text, activity);
-      setStep("agent", "done");   setProgress(100);
+      const studentBlocks = splitStudentsFromText(text);
+      const total = studentBlocks.length;
+      const finalStudents = [];
+      let subjectName = "";
+      const agentLabelEl = document.querySelector("#step-agent span:last-child");
+
+      for (let i = 0; i < studentBlocks.length; i++) {
+        const block = studentBlocks[i];
+        if (agentLabelEl) agentLabelEl.textContent = `AI가 세특 작성 중… (${i + 1}/${total}명)`;
+        setProgress(75 + Math.round((i / total) * 20));
+
+        let parsed = await runAgent(sessionId, block.text, activity);
+        let student = parsed.students[0];
+        subjectName = subjectName || parsed.subject || "";
+
+        // 이미 생성된 다른 학생들과 세특 내용이 많이 겹치면 다르게 재작성 요청
+        let attempt = 0;
+        while (
+          attempt < MAX_REGEN_ATTEMPTS &&
+          finalStudents.some(s =>
+            textSimilarity((student.records || []).join(" "), (s.records || []).join(" ")) >= DUPLICATE_THRESHOLD
+          )
+        ) {
+          attempt++;
+          parsed = await runAgent(
+            sessionId,
+            block.text,
+            `${activity}\n(주의: 이전에 생성한 다른 학생의 세특 문장과 표현이 겹치지 않도록 문장 구성과 어휘를 다르게 하여 다시 작성해줘)`
+          );
+          student = parsed.students[0];
+        }
+
+        finalStudents.push(student);
+      }
+
+      setStep("agent", "done"); setProgress(100);
+      const result = { subject: subjectName, students: finalStudents };
 
       setTimeout(() => { hideProgress(); renderResults(result); document.getElementById("generate-btn").disabled = false; }, 400);
 
@@ -445,6 +490,49 @@
     return text;
   }
 
+  // ── 학생별 텍스트 분리 ─────────────────────────────────────────────
+  // 반/번호가 1부터 순차 증가하는 지점을 학생 구분 기준으로 사용 (교과 무관 범용 방식)
+  function splitStudentsFromText(text) {
+    const pattern = /(\d{1,2})\s+([가-힣]{2,4})(?=\s+[가-힣])/g;
+    const matches = [...text.matchAll(pattern)];
+    const starts = [];
+    let expected = 1;
+    for (const m of matches) {
+      const num = parseInt(m[1], 10);
+      if (num === expected) {
+        starts.push({ index: m.index, num, name: m[2] });
+        expected++;
+      }
+    }
+    if (starts.length === 0) {
+      // 분리 실패 시 안전하게 전체를 1개 블록으로 반환
+      return [{ name: null, text }];
+    }
+    const blocks = [];
+    for (let i = 0; i < starts.length; i++) {
+      const start = starts[i].index;
+      const end = i + 1 < starts.length ? starts[i + 1].index : text.length;
+      blocks.push({ name: starts[i].name, text: text.slice(start, end).trim() });
+    }
+    return blocks;
+  }
+
+  // ── 세특 중복도 검사 (단어 단위 자카드 유사도) ───────────────────────
+  function textSimilarity(a, b) {
+    const tokenize = s => new Set(
+      String(s).replace(/[^\p{L}\p{N}\s]/gu, "").split(/\s+/).filter(Boolean)
+    );
+    const setA = tokenize(a), setB = tokenize(b);
+    if (setA.size === 0 || setB.size === 0) return 0;
+    let inter = 0;
+    for (const w of setA) if (setB.has(w)) inter++;
+    const union = setA.size + setB.size - inter;
+    return union === 0 ? 0 : inter / union;
+  }
+
+  const DUPLICATE_THRESHOLD = 0.6; // 이 값 이상 겹치면 다른 학생과 중복으로 판단해 재생성
+  const MAX_REGEN_ATTEMPTS = 2;    // 학생 1명당 최대 재생성 시도 횟수
+
   // ── API 호출 (헤더에 커스텀 필드 없음 → CORS preflight 통과) ─────────
   async function createSession(agentId) {
     const res = await fetch(`${BASE_URL}/sessions`, {
@@ -486,6 +574,26 @@
   // 현재 LangBridge 응답
   if (data?.params?.response?.students) {
     return data.params.response;
+  }
+
+  // 실제 LaivStudio 응답: params.record (또는 analyzed_Data)가
+  // 학생 1명 분량을 record_1/record_2/... 형태의 flat 필드로 담고 있음
+  const flat = data?.params?.record || data?.params?.analyzed_Data;
+  if (flat?.student_name) {
+    const records = Object.keys(flat)
+      .filter(k => /^record_\d+$/.test(k))
+      .sort((a, b) => {
+        const na = parseInt(a.match(/\d+/)[0], 10);
+        const nb = parseInt(b.match(/\d+/)[0], 10);
+        return na - nb;
+      })
+      .map(k => flat[k])
+      .filter(v => typeof v === "string" && v.trim() !== ""); // 빈 record_N 제거
+
+    return {
+      subject: flat.subject || "",
+      students: [{ student_name: flat.student_name, records }]
+    };
   }
 
   // 예비 호환
@@ -577,7 +685,7 @@
     const icon = document.getElementById(`icon-${key}`);
     if (state === "active") {
       el.style.color = "var(--sky)";
-      icon.innerHTML = `<span class="spinner"></span>`;
+      icon.innerHTML = `<span class="spinner"><span></span><span></span><span></span></span>`;
     } else {
       el.style.color = "var(--green)";
       icon.textContent = "✓";
