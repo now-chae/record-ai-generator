@@ -112,6 +112,8 @@
     }
     .result-editor:focus { outline: none; border-color: var(--sky); box-shadow: 0 0 0 3px rgba(74,144,217,0.10); }
     .duplicate-warning { background:#FFF6E5; color:#9A6700; border:1px solid #F3D38A; }
+    .duplicate-warning.medium { background:#FFF0E0; color:#B45309; border-color:#FDBA74; }
+    .duplicate-warning.high { background:var(--red-light); color:var(--red); border-color:#F5A3A3; }
 
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-thumb { background: var(--sky-mid); border-radius: 3px; }
@@ -318,8 +320,12 @@
   const BASE_URL = "https://langbridge.kosac.laivdata.com";
   const LS_KEY   = "세특_agent_id";
 
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  const PDF_WORKER_URLS = [
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js",
+    "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js"
+  ];
+  let pdfWorkerSetupPromise = null;
+  let pdfWorkerBlobUrl = "";
 
   let selectedFile = null;
   let studentsData = [];
@@ -328,6 +334,29 @@
   let currentActivity = "";
   let previousStudentTexts = [];
   let duplicateRefreshTimer = null;
+
+  // 외부 worker URL을 Worker가 직접 열면 브라우저의 교차 출처 제한에 막힐 수 있습니다.
+  // 일반 fetch로 받은 뒤 동일 출처로 취급되는 Blob URL을 만들어 사용합니다.
+  function ensurePdfWorker() {
+    if (pdfWorkerSetupPromise) return pdfWorkerSetupPromise;
+    pdfWorkerSetupPromise = (async () => {
+      let lastError = null;
+      for (const url of PDF_WORKER_URLS) {
+        try {
+          const response = await fetch(url, { mode: "cors", cache: "force-cache" });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const workerCode = await response.text();
+          pdfWorkerBlobUrl = URL.createObjectURL(new Blob([workerCode], { type: "text/javascript" }));
+          pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerBlobUrl;
+          return;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      throw new Error(`PDF 처리 모듈을 불러오지 못했습니다. 인터넷 연결 또는 사이트 보안 설정을 확인해 주세요.\n${lastError?.message || "worker load failed"}`);
+    })();
+    return pdfWorkerSetupPromise;
+  }
 
   // ── 초기화 ──────────────────────────────────────────────────────────
   window.addEventListener("DOMContentLoaded", () => {
@@ -561,8 +590,15 @@
         }
         setProgress(75 + Math.round((i / total) * 20));
 
-        const parsed = await runAgent(sessionId, block.text, activity);
-        if (!parsed.students?.length) throw new Error(`${block.name} 학생의 생성 결과가 비어 있습니다.`);
+        const parsed = await runAgentWithBlankRetry(
+          sessionId,
+          block.text,
+          activity,
+          block.name,
+          () => {
+            if (agentDetailEl) agentDetailEl.textContent = `현재 ${i + 1}/${total}명 · ${block.name} 빈 결과 재시도 중`;
+          }
+        );
         let student = parsed.students[0];
         student.student_name = block.name;
         subjectName = subjectName || parsed.subject || "";
@@ -586,6 +622,7 @@
 
   // ── PDF 추출 + 전처리 ──────────────────────────────────────────────
   async function extractPdfText(file) {
+    await ensurePdfWorker();
     const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
     let text = "";
     for (let i = 1; i <= pdf.numPages; i++) {
@@ -712,6 +749,25 @@
     return parsed;
   }
 
+  function hasGeneratedRecords(parsed) {
+    const student = parsed?.students?.[0];
+    return Array.isArray(student?.records) && student.records.some(record =>
+      typeof record === "string" && record.trim() !== ""
+    );
+  }
+
+  // 응답은 성공했지만 세특 문장이 모두 비어 있으면 해당 학생만 자동으로 1회 재호출합니다.
+  async function runAgentWithBlankRetry(sessionId, userInput, activity, studentName, onRetry) {
+    let parsed = await runAgent(sessionId, userInput, activity);
+    if (hasGeneratedRecords(parsed)) return parsed;
+
+    if (typeof onRetry === "function") onRetry();
+    parsed = await runAgent(sessionId, userInput, activity);
+    if (hasGeneratedRecords(parsed)) return parsed;
+
+    throw new Error(`${studentName} 학생의 세특 문장이 두 번 연속 비어 있습니다. 다시 생성 버튼으로 재시도해 주세요.`);
+  }
+
   function extractStudents(data) {
 
   // 현재 LangBridge 응답
@@ -796,8 +852,8 @@
           </div>
         </div>
         <div class="px-5 py-4">
-          <div id="duplicate-${idx}" class="${duplicateMap.has(idx) ? '' : 'hidden'} duplicate-warning rounded-lg px-3 py-2 text-xs mb-3">
-            ${duplicateMap.has(idx) ? `⚠ ${esc(duplicateMap.get(idx).join(', '))} 학생과 표현이 유사할 수 있습니다.` : ''}
+          <div id="duplicate-${idx}" class="${duplicateMap.has(idx) ? duplicateWarningClass(duplicateMap.get(idx)) : 'hidden'} duplicate-warning rounded-lg px-3 py-2 text-xs mb-3">
+            ${duplicateMap.has(idx) ? esc(formatDuplicateWarning(duplicateMap.get(idx))) : ''}
           </div>
           <textarea id="result-editor-${idx}" class="result-editor" oninput="onResultEdit(${idx},this)"></textarea>
           <div class="flex items-center justify-between mt-2">
@@ -846,8 +902,13 @@
 
     try {
       const block = reviewedStudentBlocks[idx];
-      const parsed = await runAgent(currentSessionId, block.text, currentActivity);
-      if (!parsed.students?.length) throw new Error(`${block.name} 학생의 재생성 결과가 비어 있습니다.`);
+      const parsed = await runAgentWithBlankRetry(
+        currentSessionId,
+        block.text,
+        currentActivity,
+        block.name,
+        () => { button.textContent = "세특 재생성 중…"; }
+      );
       const student = parsed.students[0];
       student.student_name = block.name;
       studentsData[idx] = student;
@@ -887,12 +948,25 @@
         if (similarity >= DUPLICATE_THRESHOLD) {
           if (!result.has(i)) result.set(i, []);
           if (!result.has(j)) result.set(j, []);
-          result.get(i).push(students[j].student_name);
-          result.get(j).push(students[i].student_name);
+          const percent = Math.round(similarity * 100);
+          result.get(i).push({ name: students[j].student_name, percent });
+          result.get(j).push({ name: students[i].student_name, percent });
         }
       }
     }
+    for (const matches of result.values()) {
+      matches.sort((a, b) => b.percent - a.percent);
+    }
     return result;
+  }
+
+  function formatDuplicateWarning(matches) {
+    return `⚠ 표현 유사도 · ${matches.map(match => `${match.name} ${match.percent}%`).join(" · ")}`;
+  }
+
+  function duplicateWarningClass(matches) {
+    const highest = matches?.[0]?.percent || 0;
+    return highest >= 75 ? "high" : highest >= 65 ? "medium" : "";
   }
 
   function refreshDuplicateWarnings() {
@@ -900,9 +974,16 @@
     studentsData.forEach((student, idx) => {
       const box = document.getElementById(`duplicate-${idx}`);
       if (!box) return;
-      const names = duplicateMap.get(idx);
-      box.classList.toggle("hidden", !names);
-      box.textContent = names ? `⚠ ${names.join(', ')} 학생과 표현이 유사할 수 있습니다.` : "";
+      const matches = duplicateMap.get(idx);
+      box.classList.toggle("hidden", !matches);
+      box.classList.remove("medium", "high");
+      if (matches) {
+        const severityClass = duplicateWarningClass(matches);
+        if (severityClass) box.classList.add(severityClass);
+        box.textContent = formatDuplicateWarning(matches);
+      } else {
+        box.textContent = "";
+      }
     });
   }
 
